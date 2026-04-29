@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SAM Template — Tizón Tardío Detection API
+#
+# Despliega:
+#   - Función Lambda (imagen Docker desde ECR)
+#   - API Gateway REST (triggers HTTP → Lambda)
+#   - S3 Bucket para el modelo .h5
+#   - IAM Role con permisos mínimos (S3 read-only sobre el bucket del modelo)
+#
+# Despliegue:
+#   sam deploy --guided
+# ═══════════════════════════════════════════════════════════════════════════
+
+Description: >
+  Tizón Tardío Detection API
+  Servicio Python de detección de enfermedades en cultivos de papa.
+  FastAPI + TensorFlow desplegado como contenedor Lambda.
+
+# ── Parámetros configurables al desplegar ──────────────────────────────────
+Parameters:
+
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue.
+
+  LambdaMemoryMB:
+    Type: Number
+    Default: 2048
+    Description: >
+      Memoria de Lambda en MB.
+      TensorFlow necesita al menos 1536 MB.
+      2048 MB es el mínimo recomendado para inferencia estable.
+      Más memoria también da más vCPU en Lambda.
+
+  LambdaTimeoutSeconds:
+    Type: Number
+    Default: 60
+    Description: >
+      Timeout de Lambda en segundos.
+      El modelo puede tardar hasta 10s en cold start + 1-2s de inferencia.
+      60s da margen suficiente.
+
+# ── Valores globales para todas las funciones ──────────────────────────────
+Globals:
+  Function:
+    Timeout: !Ref LambdaTimeoutSeconds
+    MemorySize: !Ref LambdaMemoryMB
+    Architectures:
+      - x86_64   # TensorFlow no tiene wheel arm64 estable aún
+
+# ── Recursos ───────────────────────────────────────────────────────────────
+Resources:
+
+  # ── S3 Bucket para el modelo .h5 ─────────────────────────────────────
+  ModelBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "tizon-tardio-models-${AWS::AccountId}-${Stage}"
+      VersioningConfiguration:
+        Status: Enabled   # Permite rollback a versiones anteriores del modelo
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldModelVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30  # Mantener solo 30 días de versiones antiguas
+
+  # ── Lambda Function (contenedor Docker) ──────────────────────────────
+  TizonDetectionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "tizon-detection-${Stage}"
+      Description: >
+        Análisis de frames de cámara para detectar Tizón en cultivos de papa.
+        FastAPI + TensorFlow + OpenCV.
+
+      # Imagen Docker desde ECR
+      # La imagen debe construirse y pushearse a ECR antes del despliegue.
+      # Ver scripts/deploy_aws.sh para el proceso completo.
+      PackageType: Image
+      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/tizon-tardio:latest"
+
+      # Variables de entorno de la función
+      Environment:
+        Variables:
+          APP_ENV: aws
+          MODEL_S3_BUCKET: !Ref ModelBucket
+          MODEL_S3_KEY: "models/modelo_tizon_tardio.h5"
+
+      # Permisos IAM: solo lectura del bucket del modelo
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ModelBucket
+
+      # Triggers HTTP via API Gateway
+      Events:
+        AnalyzeEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref TizonApi
+            Path: /analyze
+            Method: POST
+        HealthEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref TizonApi
+            Path: /health
+            Method: GET
+
+  # ── API Gateway ───────────────────────────────────────────────────────
+  TizonApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "tizon-tardio-api-${Stage}"
+      StageName: !Ref Stage
+      Description: API Gateway para el servicio de detección de Tizón Tardío.
+
+      # CORS: permite que Spring Boot llame a la API
+      Cors:
+        AllowMethods: "'POST,GET,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
+        AllowOrigin: "'*'"
+        MaxAge: "'600'"
+
+      # Aumentar límite de payload a 10MB (frames pueden ser grandes)
+      BinaryMediaTypes:
+        - "application/json"
+
+# ── Salidas (outputs) usadas por otros servicios ───────────────────────────
+Outputs:
+
+  ApiBaseUrl:
+    Description: >
+      URL base de la API. Configura esta URL como PYTHON_SERVICE_URL
+      en las variables de entorno de Spring Boot.
+    Value: !Sub "https://${TizonApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+    Export:
+      Name: !Sub "TizonApiBaseUrl-${Stage}"
+
+  ModelBucketName:
+    Description: Nombre del bucket S3 donde se almacena el modelo .h5.
+    Value: !Ref ModelBucket
+    Export:
+      Name: !Sub "TizonModelBucket-${Stage}"
+
+  LambdaFunctionArn:
+    Description: ARN de la función Lambda.
+    Value: !GetAtt TizonDetectionFunction.Arn

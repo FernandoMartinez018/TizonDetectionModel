@@ -1,0 +1,14 @@
+# Incluye todas las dependencias de producción
+-r requirements.txt
+
+# ── Testing ────────────────────────────────────────────────────────────────
+pytest==8.2.0
+pytest-asyncio==0.23.6
+httpx==0.27.0            # Cliente de prueba para FastAPI TestClient async
+
+# ── Calidad de código ──────────────────────────────────────────────────────
+ruff==0.4.4              # Linter + formatter (reemplaza flake8, black, isort)
+mypy==1.10.0             # Type checking
+
+# ── Utilidades de desarrollo ───────────────────────────────────────────────
+python-dotenv==1.0.1     # Cargar .env en desarrollo local
