@@ -11,4 +11,4 @@ ruff==0.4.4              # Linter + formatter (reemplaza flake8, black, isort)
 mypy==1.10.0             # Type checking
 
 # ── Utilidades de desarrollo ───────────────────────────────────────────────
-python-dotenv==1.0.1     # Cargar .env en desarrollo local
+python-dotenv==1.0.1     # Cargar .env en desarrollo localopenapi-core==0.19.5    # Prueba de contrato contra contracts/tizon-api.yaml

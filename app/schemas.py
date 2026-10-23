@@ -1,134 +1,54 @@
+"""Esquemas de la API interna de IA. Idénticos a `contracts/tizon-api.yaml` (tag interno-ia)."""
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
-import base64
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.model_meta import ClassId, InputSpec
 
 
+class Probabilities(BaseModel):
+    SANO: float = Field(ge=0, le=1)
+    TIZON_TARDIO: float = Field(ge=0, le=1)
 
 
-class AnalyzeRequest(BaseModel):
+class Region(BaseModel):
+    """Región de hoja analizada (no necesariamente la lesión). Coordenadas relativas al frame."""
 
-    frame_b64: str = Field(
-        ...,
-        description=(
-            "Imagen del frame codificada en Base64 estándar (RFC 4648). "
-            "Formatos soportados: JPEG, PNG. "
-            "Resolución recomendada: 224×224 px para óptimo rendimiento."
-        ),
-        min_length=100,  
-    )
-    session_id: str | None = Field(
-        default=None,
-        description="ID de sesión del usuario para agrupar análisis. Opcional.",
-    )
-
-    @field_validator("frame_b64")
-    @classmethod
-    def validate_base64(cls, v: str) -> str:
-        try:
-            base64.b64decode(v, validate=True)
-        except Exception:
-            raise ValueError(
-                "frame_b64 no es un string Base64 válido. "
-                "Asegúrate de no incluir el prefijo 'data:image/...;base64,'."
-            )
-        return v
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    width: float = Field(gt=0, le=1)
+    height: float = Field(gt=0, le=1)
+    label: ClassId
+    confidence: float = Field(ge=0, le=1)
+    probabilities: Probabilities
 
 
+class IaAnalyzeRequest(BaseModel):
+    frame_b64: str = Field(min_length=100, description="JPEG/PNG en Base64 estándar, sin prefijo data URI")
+    request_id: str | None = None
 
 
-class BoundingBox(BaseModel):
+class IaAnalyzeResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
 
-    x: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Coordenada X del borde izquierdo (relativa, 0=izquierda, 1=derecha).",
-    )
-    y: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Coordenada Y del borde superior (relativa, 0=arriba, 1=abajo).",
-    )
-    width: float = Field(
-        ...,
-        gt=0.0,
-        le=1.0,
-        description="Ancho relativo de la caja de detección.",
-    )
-    height: float = Field(
-        ...,
-        gt=0.0,
-        le=1.0,
-        description="Alto relativo de la caja de detección.",
-    )
-    label: str = Field(
-        ...,
-        description="Clase predicha: 'Sano', 'Tizon Temprano' o 'Tizon Tardio'.",
-    )
-    confidence: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Probabilidad de la clase predicha [0.0 – 1.0].",
-    )
-    probabilities: dict[str, float] = Field(
-        ...,
-        description="Probabilidad de cada clase: {'Sano': 0.1, 'Tizon Temprano': 0.2, 'Tizon Tardio': 0.7}.",
-    )
+    status: Literal["DETECTED", "NO_VEGETATION"]
+    label: ClassId | None = None
+    confidence: float | None = None
+    probabilities: Probabilities | None = None
+    regions: list[Region] = Field(default_factory=list)
+    frame_width: int
+    frame_height: int
+    model_version: str
+    inference_ms: int
 
 
-class AnalyzeResponse(BaseModel):
+class IaHealth(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
 
-    label: str = Field(
-        ...,
-        description="Clase dominante del frame: 'Sano', 'Tizon Temprano', 'Tizon Tardio' o 'Sin deteccion'.",
-    )
-    confidence: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Confianza de la predicción dominante [0.0 – 1.0].",
-    )
-    probabilities: dict[str, float] = Field(
-        ...,
-        description="Probabilidades de la predicción dominante por clase.",
-    )
-    bounding_boxes: list[BoundingBox] = Field(
-        default_factory=list,
-        description="Lista de todas las detecciones en el frame con sus coordenadas relativas.",
-    )
-    is_vegetation: bool = Field(
-        ...,
-        description="True si se detectó vegetación válida en el frame.",
-    )
-    frame_width: int = Field(
-        ...,
-        description="Ancho original del frame en píxeles.",
-    )
-    frame_height: int = Field(
-        ...,
-        description="Alto original del frame en píxeles.",
-    )
-    session_id: str | None = Field(
-        default=None,
-        description="Eco del session_id recibido en el request.",
-    )
-
-
-class HealthResponse(BaseModel):
-
-    status: str = Field(..., description="'ok' si el servicio está operativo.")
-    model_loaded: bool = Field(
-        ...,
-        description="True si el modelo TensorFlow está cargado en memoria.",
-    )
-    model_path: str = Field(
-        ...,
-        description="Ruta desde donde se cargó el modelo (local o S3).",
-    )
-    environment: str = Field(
-        ...,
-        description="Entorno actual: 'local' o 'aws'.",
-    )
+    status: Literal["ok", "degraded"]
+    model_loaded: bool
+    model_version: str
+    classes: list[ClassId]
+    input_spec: InputSpec | dict  # {} cuando no hay model_meta.json válido

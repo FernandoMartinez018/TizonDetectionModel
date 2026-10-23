@@ -1,0 +1,599 @@
+openapi: 3.1.0
+info:
+  title: Tizón Tardío API
+  version: 2.0.0
+  description: |
+    Contrato único (fuente de verdad) del sistema Tizón Tardío.
+    - Tag `publico`: API de Spring Boot consumida por la app Android. Base: `https://<host>/api`.
+    - Tag `interno-ia`: API del servicio de IA, consumida SOLO por Spring en la red interna. Base: `http://ia:8000`.
+    Convenciones: JSON en snake_case; fechas ISO-8601 con zona (`2026-11-08T10:15:00-05:00`);
+    identificadores técnicos de clase en MAYÚSCULAS sin tilde (SANO, TIZON_TARDIO); los textos visibles los resuelve la app.
+servers:
+  - url: https://{host}/api
+    description: API pública (Spring)
+    variables:
+      host:
+        default: localhost
+  - url: http://ia:8000
+    description: Servicio IA (solo red interna)
+tags:
+  - name: publico
+  - name: interno-ia
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [publico]
+      summary: Registrar usuario (rol AGRICULTOR por defecto)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /auth/login:
+    post:
+      tags: [publico]
+      summary: Iniciar sesión
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Autenticado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/me:
+    get:
+      tags: [publico]
+      summary: Usuario autenticado
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /config:
+    get:
+      tags: [publico]
+      summary: Configuración funcional para la app (clases, umbrales, ritmo de envío)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppConfig' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sessions:
+    post:
+      tags: [publico]
+      summary: Iniciar sesión de escaneo
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartSessionRequest' }
+      responses:
+        '201':
+          description: Sesión creada (ACTIVE)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    get:
+      tags: [publico]
+      summary: Historial paginado. AGRICULTOR ve las suyas; TECNICO/ADMIN pueden filtrar por usuario.
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: username, in: query, schema: { type: string }, description: Solo TECNICO/ADMIN }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/SessionStatus' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /sessions/{session_id}:
+    get:
+      tags: [publico]
+      summary: Detalle de una sesión
+      parameters: [ { $ref: '#/components/parameters/SessionId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /sessions/{session_id}/frames:
+    post:
+      tags: [publico]
+      summary: Analizar un frame dentro de una sesión ACTIVE del usuario
+      parameters: [ { $ref: '#/components/parameters/SessionId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FrameRequest' }
+      responses:
+        '200':
+          description: Frame analizado (incluye el caso NO_VEGETATION, que es un resultado válido)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FrameAnalysis' }
+        '400': { $ref: '#/components/responses/InvalidImage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '502': { $ref: '#/components/responses/IaUnavailable' }
+        '504': { $ref: '#/components/responses/IaTimeout' }
+
+  /sessions/{session_id}/end:
+    post:
+      tags: [publico]
+      summary: Finalizar sesión; calcula severidad y, si supera el umbral, crea una alerta
+      parameters: [ { $ref: '#/components/parameters/SessionId' } ]
+      responses:
+        '200':
+          description: Resumen final
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /alerts:
+    get:
+      tags: [publico]
+      summary: Alertas visibles para el usuario (propias; TECNICO/ADMIN ven todas)
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/AlertStatus' } }
+        - { name: since, in: query, schema: { type: string, format: date-time }, description: Para sondeo incremental }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Alert' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /alerts/{alert_id}/ack:
+    post:
+      tags: [publico]
+      summary: Marcar alerta como atendida
+      parameters:
+        - { name: alert_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Alert' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/users:
+    get:
+      tags: [publico]
+      summary: Listar usuarios (ADMIN)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/users/{user_id}:
+    patch:
+      tags: [publico]
+      summary: Cambiar rol o habilitación (ADMIN)
+      parameters:
+        - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /actuator/health:
+    get:
+      tags: [publico]
+      summary: Salud compuesta (db + ia). Público, sin detalles.
+      security: []
+      responses:
+        '200': { description: UP }
+        '503': { description: DOWN }
+
+  # ───────────────────────── Servicio IA (interno) ─────────────────────────
+  /health:
+    get:
+      tags: [interno-ia]
+      summary: Estado del modelo y metadatos
+      security: []
+      servers: [ { url: 'http://ia:8000' } ]
+      responses:
+        '200':
+          description: OK (aunque model_loaded=false)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IaHealth' }
+
+  /v1/analyze:
+    post:
+      tags: [interno-ia]
+      summary: Analizar imagen
+      security: [ { internalToken: [] } ]
+      servers: [ { url: 'http://ia:8000' } ]
+      parameters:
+        - { name: X-Request-Id, in: header, schema: { type: string }, description: Correlación con Spring }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IaAnalyzeRequest' }
+      responses:
+        '200':
+          description: Analizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IaAnalyzeResponse' }
+        '400': { $ref: '#/components/responses/InvalidImage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503':
+          description: Modelo no cargado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    internalToken: { type: apiKey, in: header, name: X-Internal-Token }
+
+  parameters:
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    ValidationError:
+      description: Datos inválidos (code=VALIDATION_ERROR)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    InvalidImage:
+      description: Imagen no decodificable o Base64 inválido (code=INVALID_IMAGE)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unauthorized:
+      description: Sin token, token inválido/expirado o credenciales incorrectas (code=UNAUTHORIZED | BAD_CREDENTIALS | TOKEN_EXPIRED)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Rol insuficiente (code=FORBIDDEN)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: No existe o no pertenece al usuario (code=NOT_FOUND)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Estado incompatible (code=SESSION_NOT_ACTIVE | USERNAME_TAKEN)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    PayloadTooLarge:
+      description: Frame > 2 MB (code=PAYLOAD_TOO_LARGE)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    IaUnavailable:
+      description: Servicio de IA caído o modelo no cargado (code=IA_UNAVAILABLE). NO se persiste resultado.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    IaTimeout:
+      description: La IA no respondió a tiempo (code=IA_TIMEOUT). NO se persiste resultado.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  schemas:
+    Error:
+      type: object
+      required: [status, code, message, timestamp]
+      properties:
+        status: { type: integer, example: 409 }
+        code:
+          type: string
+          enum: [VALIDATION_ERROR, INVALID_IMAGE, UNAUTHORIZED, BAD_CREDENTIALS, TOKEN_EXPIRED, FORBIDDEN,
+                 NOT_FOUND, SESSION_NOT_ACTIVE, USERNAME_TAKEN, PAYLOAD_TOO_LARGE, IA_UNAVAILABLE,
+                 IA_TIMEOUT, MODEL_NOT_READY, INTERNAL_ERROR]
+        message: { type: string, description: Mensaje en español apto para mostrarse al usuario }
+        timestamp: { type: string, format: date-time }
+        request_id: { type: string }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+
+    Role: { type: string, enum: [AGRICULTOR, TECNICO, ADMIN] }
+    ClassId: { type: string, enum: [SANO, TIZON_TARDIO] }
+    SessionStatus: { type: string, enum: [ACTIVE, COMPLETED, CANCELLED] }
+    Severity:
+      type: string
+      enum: [NONE, LOW, WARNING, CRITICAL]
+      description: |
+        Calculada sobre affection_pct con los umbrales de AppConfig:
+        NONE = 0 · LOW = (0, warning_pct] · WARNING = (warning_pct, critical_pct] · CRITICAL = > critical_pct
+    AlertStatus: { type: string, enum: [OPEN, ACKNOWLEDGED] }
+
+    RegisterRequest:
+      type: object
+      required: [username, password, full_name]
+      properties:
+        username: { type: string, pattern: '^[a-zA-Z0-9._-]{4,40}$' }
+        password: { type: string, minLength: 8, maxLength: 72 }
+        full_name: { type: string, minLength: 2, maxLength: 120 }
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+
+    LoginResponse:
+      type: object
+      required: [token, expires_at, user]
+      properties:
+        token: { type: string }
+        expires_at: { type: string, format: date-time }
+        user: { $ref: '#/components/schemas/User' }
+
+    User:
+      type: object
+      required: [id, username, full_name, role, enabled]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        full_name: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+        enabled: { type: boolean }
+
+    AppConfig:
+      type: object
+      required: [classes, severity, alert_threshold_pct, frame_interval_ms, model_version]
+      properties:
+        classes:
+          type: array
+          items:
+            type: object
+            required: [id, affected]
+            properties:
+              id: { $ref: '#/components/schemas/ClassId' }
+              affected: { type: boolean, description: true si la clase cuenta como afectada }
+        severity:
+          type: object
+          required: [warning_pct, critical_pct]
+          properties:
+            warning_pct: { type: number, example: 10 }
+            critical_pct: { type: number, example: 30 }
+        alert_threshold_pct: { type: number, example: 30 }
+        frame_interval_ms: { type: integer, example: 700, description: Pausa mínima sugerida entre frames }
+        model_version: { type: string, example: mobilenetv2-2c-2026.04 }
+
+    Location:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        accuracy_m: { type: number, minimum: 0 }
+
+    StartSessionRequest:
+      type: object
+      properties:
+        location: { $ref: '#/components/schemas/Location' }
+        field_name: { type: string, maxLength: 120, description: Finca/lote (opcional) }
+
+    FrameRequest:
+      type: object
+      required: [frame_b64]
+      properties:
+        frame_b64:
+          type: string
+          description: JPEG/PNG en Base64 estándar SIN prefijo data URI. Máx. 2 MB decodificado.
+          minLength: 100
+        location: { $ref: '#/components/schemas/Location' }
+
+    Region:
+      type: object
+      description: Región de hoja analizada (no necesariamente la lesión). Coordenadas relativas al frame enviado, ya corregido en rotación.
+      required: [x, y, width, height, label, confidence, probabilities]
+      properties:
+        x: { type: number, minimum: 0, maximum: 1 }
+        y: { type: number, minimum: 0, maximum: 1 }
+        width: { type: number, exclusiveMinimum: 0, maximum: 1 }
+        height: { type: number, exclusiveMinimum: 0, maximum: 1 }
+        label: { $ref: '#/components/schemas/ClassId' }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        probabilities: { $ref: '#/components/schemas/Probabilities' }
+
+    Probabilities:
+      type: object
+      required: [SANO, TIZON_TARDIO]
+      properties:
+        SANO: { type: number, minimum: 0, maximum: 1 }
+        TIZON_TARDIO: { type: number, minimum: 0, maximum: 1 }
+
+    FrameAnalysis:
+      type: object
+      required: [frame_id, session_id, status, regions, frame_width, frame_height, model_version, latency_ms]
+      properties:
+        frame_id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [DETECTED, NO_VEGETATION]
+          description: NO_VEGETATION = no se encontró hoja analizable (resultado válido, se persiste)
+        label:
+          oneOf: [ { $ref: '#/components/schemas/ClassId' }, { type: 'null' } ]
+          description: Resultado principal = clase más severa con confianza ≥ umbral; null si NO_VEGETATION
+        confidence: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        probabilities:
+          oneOf: [ { $ref: '#/components/schemas/Probabilities' }, { type: 'null' } ]
+        regions:
+          type: array
+          items: { $ref: '#/components/schemas/Region' }
+        frame_width: { type: integer }
+        frame_height: { type: integer }
+        model_version: { type: string }
+        latency_ms: { type: integer, description: Tiempo total en Spring (incluye IA) }
+        session_stats: { $ref: '#/components/schemas/SessionStats' }
+
+    SessionStats:
+      type: object
+      required: [total_frames, analyzed_frames, affected_frames, no_vegetation_frames, affection_pct, severity]
+      properties:
+        total_frames: { type: integer, description: Frames persistidos (DETECTED + NO_VEGETATION) }
+        analyzed_frames: { type: integer, description: Frames DETECTED }
+        affected_frames: { type: integer, description: Frames DETECTED con label TIZON_TARDIO }
+        no_vegetation_frames: { type: integer }
+        affection_pct: { type: number, description: affected_frames / analyzed_frames × 100 (0 si analyzed=0) }
+        severity: { $ref: '#/components/schemas/Severity' }
+        avg_confidence: { type: [number, 'null'], description: Promedio solo sobre frames DETECTED }
+        dominant_label: { oneOf: [ { $ref: '#/components/schemas/ClassId' }, { type: 'null' } ], description: Clase más frecuente entre DETECTED }
+
+    SessionSummary:
+      allOf:
+        - $ref: '#/components/schemas/SessionStats'
+        - type: object
+          required: [session_id, username, status, started_at]
+          properties:
+            session_id: { type: string, format: uuid }
+            username: { type: string }
+            status: { $ref: '#/components/schemas/SessionStatus' }
+            started_at: { type: string, format: date-time }
+            ended_at: { type: [string, 'null'], format: date-time }
+            location:
+              oneOf: [ { $ref: '#/components/schemas/Location' }, { type: 'null' } ]
+            field_name: { type: [string, 'null'] }
+            alert_id: { type: [string, 'null'], format: uuid }
+            recommendations:
+              type: array
+              items: { $ref: '#/components/schemas/Recommendation' }
+
+    Recommendation:
+      type: object
+      required: [severity, text, source]
+      properties:
+        severity: { $ref: '#/components/schemas/Severity' }
+        text: { type: string }
+        source: { type: string, description: Referencia bibliográfica o institucional del texto }
+
+    SessionPage:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SessionSummary' }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+
+    Alert:
+      type: object
+      required: [alert_id, session_id, username, severity, affection_pct, status, created_at]
+      properties:
+        alert_id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        username: { type: string }
+        severity: { $ref: '#/components/schemas/Severity' }
+        affection_pct: { type: number }
+        location:
+          oneOf: [ { $ref: '#/components/schemas/Location' }, { type: 'null' } ]
+        field_name: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/AlertStatus' }
+        created_at: { type: string, format: date-time }
+        acknowledged_by: { type: [string, 'null'] }
+
+    IaHealth:
+      type: object
+      required: [status, model_loaded, model_version, classes, input_spec]
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        model_loaded: { type: boolean }
+        model_version: { type: string }
+        classes:
+          type: array
+          items: { $ref: '#/components/schemas/ClassId' }
+          description: Orden = índice de salida del modelo
+        input_spec:
+          type: object
+          properties:
+            width: { type: integer, example: 224 }
+            height: { type: integer, example: 224 }
+            color_order: { type: string, enum: [RGB, BGR] }
+            scaling: { type: string, enum: [unit, mobilenet_v2, none], description: 'unit = /255 → [0,1]; mobilenet_v2 = [-1,1]' }
+
+    IaAnalyzeRequest:
+      type: object
+      required: [frame_b64]
+      properties:
+        frame_b64: { type: string, minLength: 100 }
+        request_id: { type: string }
+
+    IaAnalyzeResponse:
+      type: object
+      required: [status, regions, frame_width, frame_height, model_version, inference_ms]
+      properties:
+        status: { type: string, enum: [DETECTED, NO_VEGETATION] }
+        label: { oneOf: [ { $ref: '#/components/schemas/ClassId' }, { type: 'null' } ] }
+        confidence: { type: [number, 'null'] }
+        probabilities: { oneOf: [ { $ref: '#/components/schemas/Probabilities' }, { type: 'null' } ] }
+        regions:
+          type: array
+          items: { $ref: '#/components/schemas/Region' }
+        frame_width: { type: integer }
+        frame_height: { type: integer }
+        model_version: { type: string }
+        inference_ms: { type: integer }

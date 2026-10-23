@@ -1,6 +1,6 @@
 # 🌿 Tizón Tardío — Servicio Python (FastAPI)
 
-> **Autenticación interna (F1-IA-01):** `POST /analyze` exige el header `X-Internal-Token`
+> **Autenticación interna (F1-IA-01):** `POST /v1/analyze` exige el header `X-Internal-Token`
 > igual a la variable `INTERNAL_API_TOKEN`. Fuera de `APP_ENV=local`, el servicio no arranca
 > sin esa variable. Este servicio no se expone a Internet ni usa CORS.
 

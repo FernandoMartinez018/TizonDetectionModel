@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 
+import json
+import os
+
 import cv2
 import numpy as np
 import pytest
 
-from app.predictor import Predictor
+from app.model_meta import InputSpec
+from app.predictor import Predictor, pick_main_region, preprocess
+from app.schemas import Probabilities, Region
 
 
 # ── Helpers de test ────────────────────────────────────────────────────────
@@ -126,65 +131,102 @@ class TestIsValidVegetation:
         assert Predictor._is_valid_vegetation(roi) is False
 
 
+# ── Preprocesamiento y resultado principal ────────────────────────────────
+
+class TestPreprocess:
+
+    def _spec(self, color_order="BGR", scaling="unit"):
+        return InputSpec(width=224, height=224, color_order=color_order, scaling=scaling)
+
+    def test_escala_unit_queda_en_0_1(self):
+        roi = np.full((50, 50, 3), 255, dtype=np.uint8)
+        out = preprocess(roi, self._spec(scaling="unit"))
+        assert out.shape == (224, 224, 3)
+        assert out.max() == pytest.approx(1.0)
+
+    def test_escala_mobilenet_v2_queda_en_menos1_1(self):
+        roi = np.zeros((50, 50, 3), dtype=np.uint8)
+        assert preprocess(roi, self._spec(scaling="mobilenet_v2")).min() == pytest.approx(-1.0)
+
+    def test_rgb_invierte_canales_bgr(self):
+        roi = np.zeros((10, 10, 3), dtype=np.uint8)
+        roi[:, :, 0] = 200  # azul en BGR
+        out = preprocess(roi, self._spec(color_order="RGB", scaling="none"))
+        assert out[0, 0, 2] == 200 and out[0, 0, 0] == 0
+
+
+def _region(label, confidence):
+    probs = {"SANO": 1 - confidence, "TIZON_TARDIO": confidence} if label == "TIZON_TARDIO"         else {"SANO": confidence, "TIZON_TARDIO": 1 - confidence}
+    return Region(x=0, y=0, width=0.5, height=0.5, label=label, confidence=confidence,
+                  probabilities=Probabilities(**probs))
+
+
+class TestPickMainRegion:
+
+    def test_sin_regiones_no_hay_resultado(self):
+        assert pick_main_region([]) is None
+
+    def test_gana_la_clase_mas_severa_aunque_tenga_menor_confianza(self):
+        main = pick_main_region([_region("SANO", 0.99), _region("TIZON_TARDIO", 0.60)])
+        assert main.label == "TIZON_TARDIO"
+
+    def test_en_empate_de_clase_gana_la_mayor_confianza(self):
+        main = pick_main_region([_region("SANO", 0.70), _region("SANO", 0.95)])
+        assert main.confidence == 0.95
+
+
 # ── Tests de instanciación ─────────────────────────────────────────────────
 
 class TestPredictorInit:
 
     def test_predictor_inicia_no_listo(self):
-        """Un predictor recién creado no debe estar listo."""
         p = Predictor()
         assert p.is_ready is False
-        assert p._model is None
+        assert p.meta is None
 
     def test_predict_sin_modelo_lanza_error(self):
-        """predict() sin modelo cargado debe lanzar RuntimeError."""
-        p = Predictor()
         with pytest.raises(RuntimeError, match="Modelo no inicializado"):
-            p.predict(b"cualquier_bytes")
+            Predictor().predict(b"cualquier_bytes")
 
-    def test_model_path_sin_cargar(self):
-        """model_path debe ser string vacío si no se cargó el modelo."""
+    def test_load_falla_si_el_sha256_no_coincide(self, tmp_path):
+        model = tmp_path / "modelo.h5"
+        model.write_bytes(b"no es el modelo esperado")
+        meta = tmp_path / "meta.json"
+        meta.write_text(json.dumps({
+            "model_version": "x", "file": "modelo.h5", "sha256": "0" * 64,
+            "classes": ["SANO", "TIZON_TARDIO"],
+            "input_spec": {"width": 224, "height": 224, "color_order": "BGR", "scaling": "unit"},
+        }))
         p = Predictor()
-        assert p.model_path == ""
+        with pytest.raises(ValueError, match="sha256"):
+            p.load(str(model), str(meta))
+        assert p.is_ready is False
 
 
-# ── Tests de integración (requieren modelo real) ───────────────────────────
+# ── Tests de integración (requieren el modelo real) ────────────────────────
 
 @pytest.mark.integration
 class TestPredictorIntegration:
     """
-    Estos tests requieren el modelo en model/modelo_tizon_tardio.h5
-    y APP_ENV=local en el .env.
-
-    Correr con:
-        pytest tests/test_predictor.py -m integration -v
+    Requieren el .h5 real y su model_meta.json:
+        MODEL_PATH=../modelo_tizon_tardio.h5 pytest test/ -m integration
     """
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def predictor_loaded(self):
-        """Predictor con modelo cargado (requiere modelo real)."""
         p = Predictor()
-        p.load_model()
+        p.load(os.environ.get("MODEL_PATH", "models/modelo_tizon_tardio.h5"),
+               os.environ.get("MODEL_META_PATH", "models/model_meta.json"))
         return p
 
-    def test_load_model_local(self, predictor_loaded):
+    def test_load_model(self, predictor_loaded):
         assert predictor_loaded.is_ready is True
-        assert predictor_loaded.model_path != ""
 
-    def test_predict_imagen_verde(self, predictor_loaded):
-        img = create_green_image()
-        img_bytes = image_to_bytes(img)
-        result = predictor_loaded.predict(img_bytes)
-        # El resultado debe tener todos los campos requeridos
-        assert result.label in ["Sano", "Tizon Temprano", "Tizon Tardio", "Sin deteccion"]
-        assert 0.0 <= result.confidence <= 1.0
-        assert isinstance(result.bounding_boxes, list)
-        assert result.frame_width == 224
-        assert result.frame_height == 224
-
-    def test_predict_retorna_probabilidades_validas(self, predictor_loaded):
-        img = create_green_image()
-        result = predictor_loaded.predict(image_to_bytes(img))
-        # Las probabilidades deben sumar ≈ 1.0 (con tolerancia de punto flotante)
-        total = sum(result.probabilities.values())
-        assert abs(total - 1.0) < 0.01
+    def test_predict_imagen_verde_cumple_el_contrato(self, predictor_loaded):
+        result = predictor_loaded.predict(image_to_bytes(create_green_image()))
+        assert result.status in ("DETECTED", "NO_VEGETATION")
+        assert result.frame_width == 224 and result.frame_height == 224
+        assert result.inference_ms >= 0
+        for region in result.regions:
+            total = region.probabilities.SANO + region.probabilities.TIZON_TARDIO
+            assert abs(total - 1.0) < 0.01
