@@ -7,8 +7,8 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
-from mangum import Mangum
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.errors import ApiError, error_response
@@ -137,7 +137,8 @@ async def analyze_frame(
         raise ApiError(400, "INVALID_IMAGE", "frame_b64 no es Base64 válido (sin prefijo data URI).") from exc
 
     try:
-        result = _predictor.predict(image_bytes)
+        # La inferencia es CPU intensiva: fuera del event loop (RF-06 CA5).
+        result = await run_in_threadpool(_predictor.predict, image_bytes)
     except ValueError as exc:
         raise ApiError(400, "INVALID_IMAGE", str(exc)) from exc
 
@@ -147,8 +148,6 @@ async def analyze_frame(
     )
     return result
 
-
-lambda_handler = Mangum(app, lifespan="off")
 
 
 if __name__ == "__main__":
