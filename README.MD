@@ -475,3 +475,10 @@ aws cloudformation describe-stacks \
 | S3 modelo | ~100 MB almacenamiento | ~$0.01 USD |
 | ECR imagen | ~2 GB almacenamiento | ~$0.20 USD |
 | **Total** | | **~$10 USD/mes** |
+
+## CI/CD (GitHub Actions)
+`.github/workflows/ci.yml` corre en cada push y PR a `dev`, `qa` y `main`: ruff, pytest (sin las pruebas de integración, que requieren el `.h5`) y gitleaks.
+En cada push a `qa` o `main` publica la imagen `ghcr.io/<owner>/tizon-ia` con las etiquetas `:qa` o `:main`
+y `:sha-<commit>`. La EC2 la descarga por *pull* (`deploy/scripts/auto-update.sh`): GitHub nunca entra a la EC2.
+Si el paquete de GHCR es privado, la EC2 necesita un token de solo lectura (`read:packages`).
+
