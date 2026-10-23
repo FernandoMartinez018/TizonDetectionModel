@@ -172,6 +172,21 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /sessions/{session_id}/cancel:
+    post:
+      tags: [publico]
+      summary: Descartar el escaneo (RF-04 CA6); la sesión queda CANCELLED y no genera alerta
+      parameters: [ { $ref: '#/components/parameters/SessionId' } ]
+      responses:
+        '200':
+          description: Sesión descartada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /alerts:
     get:
       tags: [publico]
