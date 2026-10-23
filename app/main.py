@@ -5,13 +5,13 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from mangum import Mangum
 
 from app.predictor import Predictor
 from app.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse
+from app.security import check_startup_config, require_internal_token
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +27,8 @@ _predictor: Predictor | None = None
 async def lifespan(app: FastAPI):
     
     global _predictor
+
+    check_startup_config()
 
     logger.info("=" * 60)
     logger.info("Iniciando Tizón Tardío Detection API")
@@ -67,15 +69,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*"],
-)
-
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Error no manejado en %s %s", request.method, request.url)
@@ -110,9 +103,11 @@ async def health_check() -> HealthResponse:
     response_model=AnalyzeResponse,
     summary="Analizar un frame de cámara",
     tags=["Análisis"],
+    dependencies=[Depends(require_internal_token)],
     responses={
         200: {"description": "Frame analizado correctamente."},
         400: {"description": "Frame inválido o Base64 incorrecto."},
+        401: {"description": "Falta X-Internal-Token o no coincide."},
         503: {"description": "Modelo no disponible aún (arranque del servidor)."},
     },
 )

@@ -1,5 +1,9 @@
 # 🌿 Tizón Tardío — Servicio Python (FastAPI)
 
+> **Autenticación interna (F1-IA-01):** `POST /analyze` exige el header `X-Internal-Token`
+> igual a la variable `INTERNAL_API_TOKEN`. Fuera de `APP_ENV=local`, el servicio no arranca
+> sin esa variable. Este servicio no se expone a Internet ni usa CORS.
+
 Servicio de detección de Tizón Temprano y Tardío en cultivos de papa.
 Recibe frames en Base64 desde Spring Boot, los analiza con TensorFlow
 y retorna etiquetas de clasificación con bounding boxes en coordenadas relativas.

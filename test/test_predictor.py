@@ -20,7 +20,7 @@ def create_green_image(width: int = 224, height: int = 224) -> np.ndarray:
     img[:, :, 1] = 120   # G — canal verde dominante
     img[:, :, 2] = 40    # R
     # Agregar textura aleatoria para superar el umbral de varianza
-    noise = np.random.randint(0, 50, (height, width, 3), dtype=np.uint8)
+    noise = np.random.randint(0, 80, (height, width, 3), dtype=np.uint8)
     img = cv2.add(img, noise)
     return img
 
