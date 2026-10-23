@@ -31,6 +31,19 @@ PLANT_GREEN_LOWER = np.array([35, 50, 50])
 PLANT_GREEN_UPPER = np.array([75, 255, 200])
 
 
+class _DepthwiseConv2DCompat(tf.keras.layers.DepthwiseConv2D):
+    """El .h5 se guardó con Keras 2.14, que serializa `groups`; Keras 3 (TF 2.16) no lo acepta.
+
+    En DepthwiseConv2D `groups` siempre vale 1, así que se descarta. Verificado contra tf_keras:
+    diferencia máxima de salida < 1e-5 (F4-IA-01).
+    """
+
+    def __init__(self, *args, groups: int | None = None, **kwargs):
+        if groups not in (None, 1):
+            raise ValueError(f"DepthwiseConv2D con groups={groups} no es compatible")
+        super().__init__(*args, **kwargs)
+
+
 def preprocess(roi_bgr: np.ndarray, spec: InputSpec) -> np.ndarray:
     """Aplica el preprocesamiento declarado en model_meta.json (orden de color y escala)."""
     img = cv2.resize(roi_bgr, (spec.width, spec.height))
@@ -66,10 +79,13 @@ class Predictor:
             raise ValueError("El sha256 del modelo no coincide con model_meta.json.")
 
         logger.info("Cargando modelo %s desde %s", self.meta.model_version, path)
-        self._model = tf.keras.models.load_model(str(path), compile=False)
+        self._model = tf.keras.models.load_model(
+            str(path), custom_objects={"DepthwiseConv2D": _DepthwiseConv2DCompat}, compile=False
+        )
 
         spec = self.meta.input_spec
-        self._model(np.zeros((1, spec.height, spec.width, 3), dtype=np.float32), training=False)
+        # El .h5 declara la entrada como lista [input]; pasarla así evita la advertencia de Keras 3.
+        self._model([np.zeros((1, spec.height, spec.width, 3), dtype=np.float32)], training=False)
         self.is_ready = True
         logger.info("Modelo cargado. Clases: %s, entrada: %s", self.meta.classes, spec)
 
@@ -91,7 +107,7 @@ class Predictor:
         if boxes:
             spec = self.meta.input_spec
             batch = np.stack([preprocess(frame[y : y + h, x : x + w], spec) for (x, y, w, h) in boxes])
-            preds = self._model(batch, training=False).numpy()
+            preds = self._model([batch], training=False).numpy()
             for (x, y, w, h), pred in zip(boxes, preds):
                 class_id = int(np.argmax(pred))
                 confidence = float(pred[class_id])
