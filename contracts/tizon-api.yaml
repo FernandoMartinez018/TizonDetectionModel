@@ -60,6 +60,7 @@ paths:
               schema: { $ref: '#/components/schemas/LoginResponse' }
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyAttempts' }
 
   /auth/me:
     get:
@@ -319,6 +320,9 @@ components:
     Conflict:
       description: Estado incompatible (code=SESSION_NOT_ACTIVE | USERNAME_TAKEN)
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    TooManyAttempts:
+      description: 5 intentos fallidos en 5 min bloquean el usuario 5 min (code=TOO_MANY_ATTEMPTS, RNF-SEG-09)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     PayloadTooLarge:
       description: Frame > 2 MB (code=PAYLOAD_TOO_LARGE)
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
@@ -338,7 +342,7 @@ components:
         code:
           type: string
           enum: [VALIDATION_ERROR, INVALID_IMAGE, UNAUTHORIZED, BAD_CREDENTIALS, TOKEN_EXPIRED, FORBIDDEN,
-                 NOT_FOUND, SESSION_NOT_ACTIVE, USERNAME_TAKEN, PAYLOAD_TOO_LARGE, IA_UNAVAILABLE,
+                 NOT_FOUND, SESSION_NOT_ACTIVE, USERNAME_TAKEN, TOO_MANY_ATTEMPTS, PAYLOAD_TOO_LARGE, IA_UNAVAILABLE,
                  IA_TIMEOUT, MODEL_NOT_READY, INTERNAL_ERROR]
         message: { type: string, description: Mensaje en español apto para mostrarse al usuario }
         timestamp: { type: string, format: date-time }
