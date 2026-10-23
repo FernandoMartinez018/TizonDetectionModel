@@ -43,3 +43,12 @@ samconfig.toml
 
 # Docker
 *.log
+# Secretos y artefactos que nunca van a git [F1-ALL-01]
+*.pem
+*.jks
+*.keystore
+.env
+*.h5
+*.keras
+local.properties
+models/
