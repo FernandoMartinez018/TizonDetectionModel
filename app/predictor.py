@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import logging
 import os
 from pathlib import Path
@@ -63,7 +62,7 @@ class Predictor:
             self.is_ready = True
             logger.info("Modelo cargado OK")
 
-        except Exception as e:
+        except Exception:
             logger.exception("🔥 ERROR REAL cargando modelo")
             self.is_ready = False
             raise

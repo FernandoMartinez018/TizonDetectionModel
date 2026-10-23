@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import base64
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -26,7 +26,6 @@ def sample_jpeg_b64() -> str:
     Genera una imagen JPEG mínima en Base64 para tests.
     Es una imagen de 10×10 píxeles negra válida.
     """
-    import io
     import cv2
 
     # Crear imagen verde 224×224 (simula una planta)
