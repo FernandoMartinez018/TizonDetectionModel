@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
+from app import vegetation
 from app.model_meta import InputSpec, ModelMeta, load_meta, sha256_of
 from app.schemas import IaAnalyzeResponse, Probabilities, Region
 
@@ -15,21 +16,6 @@ logger = logging.getLogger(__name__)
 
 # Resultado principal (contrato, doc 03): gana la clase más severa; en empate, la de mayor confianza.
 SEVERITY = {"SANO": 0, "TIZON_TARDIO": 1}
-
-# ── Filtro de vegetación (se rediseña en F4-IA-03) ─────────────────────────
-MIN_CONTOUR_AREA = 3000           # Área mínima (px²) para considerar una región
-MIN_ROI_SIZE = 80                 # Lado mínimo (px) de una ROI
-GREEN_RATIO_THRESHOLD = 0.40      # Al menos 40% de píxeles verdes naturales
-TEXTURE_VAR_THRESHOLD = 200.0     # Varianza mínima de textura para descartar objetos planos
-COLOR_VAR_THRESHOLD = 15.0        # Variación mínima de color para descartar fondos uniformes
-ASPECT_MIN = 0.3                  # Proporción mínima w/h de un contorno válido
-ASPECT_MAX = 3.0                  # Proporción máxima w/h de un contorno válido
-
-# Rango HSV para verde natural de plantas
-# Evita verdes artificiales muy brillantes (objetos plásticos, ropa verde, etc.)
-PLANT_GREEN_LOWER = np.array([35, 50, 50])
-PLANT_GREEN_UPPER = np.array([75, 255, 200])
-
 
 class _DepthwiseConv2DCompat(tf.keras.layers.DepthwiseConv2D):
     """El .h5 se guardó con Keras 2.14, que serializa `groups`; Keras 3 (TF 2.16) no lo acepta.
@@ -99,8 +85,8 @@ class Predictor:
 
         boxes = [
             (x, y, w, h)
-            for (x, y, w, h) in self._detect_vegetation_regions(frame)
-            if self._is_valid_vegetation(frame[y : y + h, x : x + w])
+            for (x, y, w, h) in vegetation.detect_regions(frame)
+            if vegetation.is_valid_leaf(frame[y : y + h, x : x + w])
         ]
 
         regions: list[Region] = []
@@ -154,59 +140,3 @@ class Predictor:
                 "Verifica que el Base64 corresponda a un JPEG o PNG válido."
             )
         return frame
-
-    @staticmethod
-    def _detect_vegetation_regions(frame: np.ndarray) -> list[tuple[int, int, int, int]]:
-        
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-        mask = cv2.inRange(hsv, PLANT_GREEN_LOWER, PLANT_GREEN_UPPER)
-
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-
-        contours, _ = cv2.findContours(
-            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-
-        regions: list[tuple[int, int, int, int]] = []
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area < MIN_CONTOUR_AREA:
-                continue  
-
-            x, y, w, h = cv2.boundingRect(cnt)
-            aspect_ratio = w / max(h, 1)
-
-            if ASPECT_MIN <= aspect_ratio <= ASPECT_MAX:
-                regions.append((x, y, w, h))
-
-        return regions
-
-    @staticmethod
-    def _is_valid_vegetation(roi: np.ndarray) -> bool:
-        
-        h, w = roi.shape[:2]
-
-        if h < MIN_ROI_SIZE or w < MIN_ROI_SIZE:
-            return False
-
-        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-        green_mask = cv2.inRange(hsv, PLANT_GREEN_LOWER, PLANT_GREEN_UPPER)
-        green_ratio = float(np.sum(green_mask > 0)) / (h * w)
-        if green_ratio < GREEN_RATIO_THRESHOLD:
-            return False
-
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        texture_variance = float(np.var(gray))
-        if texture_variance < TEXTURE_VAR_THRESHOLD:
-            return False
-
-        color_variation = float(
-            np.mean([np.std(roi[:, :, c]) for c in range(3)])
-        )
-        if color_variation < COLOR_VAR_THRESHOLD:
-            return False
-
-        return True
