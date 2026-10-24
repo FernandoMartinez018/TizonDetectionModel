@@ -207,7 +207,7 @@ paths:
   /alerts/{alert_id}/ack:
     post:
       tags: [publico]
-      summary: Marcar alerta como atendida
+      summary: Marcar alerta como atendida (TECNICO o ADMIN; idempotente)
       parameters:
         - { name: alert_id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
@@ -217,6 +217,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Alert' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/users:
