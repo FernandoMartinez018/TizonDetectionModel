@@ -12,16 +12,13 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.errors import ApiError, error_response
+from app.logging_config import configure_logging
 from app.model_meta import DEFAULT_META_PATH
 from app.predictor import Predictor
 from app.schemas import IaAnalyzeRequest, IaAnalyzeResponse, IaHealth
 from app.security import check_startup_config, require_internal_token
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+configure_logging()
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL_PATH = "models/modelo_tizon_tardio.h5"
@@ -145,6 +142,8 @@ async def analyze_frame(
     logger.info(
         "analyze request_id=%s status=%s label=%s regions=%d inference_ms=%d",
         request_id, result.status, result.label, len(result.regions), result.inference_ms,
+        extra={"request_id": request_id, "status": result.status, "label": result.label,
+               "regions": len(result.regions), "inference_ms": result.inference_ms},
     )
     return result
 

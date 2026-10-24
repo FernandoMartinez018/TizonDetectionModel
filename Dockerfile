@@ -8,6 +8,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     TF_CPP_MIN_LOG_LEVEL=2 \
     APP_ENV=production \
+    LOG_FORMAT=json \
     MODEL_PATH=/models/modelo_tizon_tardio.h5 \
     MODEL_META_PATH=/models/model_meta.json
 
@@ -27,4 +28,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD python -c "import json,urllib.request,sys; h=json.load(urllib.request.urlopen('http://localhost:8000/health', timeout=4)); sys.exit(0 if h['model_loaded'] else 1)"
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Sin access log: cada análisis ya deja una línea JSON con request_id e inference_ms.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
