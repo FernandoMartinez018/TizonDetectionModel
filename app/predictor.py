@@ -30,6 +30,13 @@ class _DepthwiseConv2DCompat(tf.keras.layers.DepthwiseConv2D):
         super().__init__(*args, **kwargs)
 
 
+def load_keras_model(path: Path) -> tf.keras.Model:
+    """Carga el .h5 con el ajuste de compatibilidad (también lo usan los scripts de evaluation/)."""
+    return tf.keras.models.load_model(
+        str(path), custom_objects={"DepthwiseConv2D": _DepthwiseConv2DCompat}, compile=False
+    )
+
+
 def preprocess(roi_bgr: np.ndarray, spec: InputSpec) -> np.ndarray:
     """Aplica el preprocesamiento declarado en model_meta.json (orden de color y escala)."""
     img = cv2.resize(roi_bgr, (spec.width, spec.height))
@@ -65,9 +72,7 @@ class Predictor:
             raise ValueError("El sha256 del modelo no coincide con model_meta.json.")
 
         logger.info("Cargando modelo %s desde %s", self.meta.model_version, path)
-        self._model = tf.keras.models.load_model(
-            str(path), custom_objects={"DepthwiseConv2D": _DepthwiseConv2DCompat}, compile=False
-        )
+        self._model = load_keras_model(path)
 
         spec = self.meta.input_spec
         # El .h5 declara la entrada como lista [input]; pasarla así evita la advertencia de Keras 3.

@@ -13,15 +13,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.errors import ApiError, error_response
 from app.logging_config import configure_logging
-from app.model_meta import DEFAULT_META_PATH
+from app.model_meta import DEFAULT_META_PATH, DEFAULT_MODEL_PATH
 from app.predictor import Predictor
 from app.schemas import IaAnalyzeRequest, IaAnalyzeResponse, IaHealth
 from app.security import check_startup_config, require_internal_token
 
 configure_logging()
 logger = logging.getLogger(__name__)
-
-DEFAULT_MODEL_PATH = "models/modelo_tizon_tardio.h5"
 
 _predictor: Predictor | None = None
 

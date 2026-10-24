@@ -48,8 +48,33 @@ uvicorn app.main:app --reload
 ```bash
 pytest test/ -m "not integration"                       # unitarias + contrato (openapi-core)
 MODEL_PATH=../modelo_tizon_tardio.h5 pytest test/ -m integration
-ruff check app test
+ruff check app test evaluation
 ```
+
+## Calibración y evaluación del modelo (F4, 08-modelo-ia)
+Los sets van **fuera del repositorio** (o en `evaluation/data/`, ignorada por git), con una carpeta por clase:
+`<dir>/SANO/*.jpg` y `<dir>/TIZON_TARDIO/*.jpg`. Los reportes quedan en `evaluation/reports/` (`.md` y `.json`)
+y sí se versionan como evidencia. Las imágenes nunca se versionan.
+
+```bash
+# 1. Orden de clases y preprocesamiento (F4-IA-02): 8 combinaciones con la imagen completa.
+#    --write guarda la mejor en models/model_meta.json solo con ≥ 30 imágenes por clase y ≥ 5 puntos de ventaja.
+python -m evaluation.calibrate --data <set_calibracion> --model ../modelo_tizon_tardio.h5 --write
+
+# 2. Métricas frente a las metas del PDF (F4-IA-04). classifier = modelo puro; pipeline = el flujo de /v1/analyze,
+#    con el filtro de vegetación (también da el % de tizón en NO_VEGETATION de F4-IA-03).
+python -m evaluation.evaluate --data <set_prueba> --mode classifier --model ../modelo_tizon_tardio.h5
+python -m evaluation.evaluate --data <set_prueba> --mode pipeline --model ../modelo_tizon_tardio.h5 \
+    --train <set_entrenamiento> --source "origen de cada subconjunto"
+
+# 3. Auditoría del dataset de entrenamiento → evaluation/reports/dataset_audit.md
+python -m evaluation.audit --data <set_entrenamiento>
+```
+
+- El set de calibración y el de prueba deben ser distintos. Con `--train`, `evaluate` busca duplicados exactos y
+  perceptuales (pHash) entre la prueba y el entrenamiento, y los lista para revisarlos a mano.
+- La latencia del reporte es la de la máquina donde corre (queda anotada). La meta de RNF-REN-02 aplica en la EC2.
+- Las métricas se reportan aunque no alcancen la meta. No se ajusta el set de prueba para mejorar los números.
 
 ## Docker
 ```bash

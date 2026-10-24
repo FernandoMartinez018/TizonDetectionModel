@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 ClassId = Literal["SANO", "TIZON_TARDIO"]
 
 DEFAULT_META_PATH = "models/model_meta.json"
+DEFAULT_MODEL_PATH = "models/modelo_tizon_tardio.h5"
 
 
 class InputSpec(BaseModel):

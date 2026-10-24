@@ -54,3 +54,6 @@ local.properties
 # models/ guarda el .h5 (no va a git); model_meta.json sí se versiona (trazabilidad del modelo).
 models/*
 !models/model_meta.json
+
+# Sets de calibración y prueba (imágenes con licencia propia): nunca a git [F4-IA-02]
+evaluation/data/
