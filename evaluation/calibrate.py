@@ -15,29 +15,37 @@ import json
 import os
 import sys
 from collections import Counter
+from itertools import permutations
 from pathlib import Path
 
 import cv2
 
 from app.model_meta import DEFAULT_META_PATH, DEFAULT_MODEL_PATH, InputSpec, ModelMeta, load_meta, sha256_of
 from app.predictor import load_keras_model
-from evaluation.common import REPORTS_DIR, load_dataset, num, pct, predict_probs, read_bgr, today, write_report
+from evaluation.common import (
+    CLASSES, REPORTS_DIR, load_dataset, num, pct, predict_probs, read_bgr, today, write_report,
+)
 
 MIN_PER_CLASS = 30
 MIN_MARGIN = 0.05
 COLOR_ORDERS = ("RGB", "BGR")
 SCALINGS = ("unit", "mobilenet_v2")
-CLASS_ORDERS = (("SANO", "TIZON_TARDIO"), ("TIZON_TARDIO", "SANO"))
 
 
 def score_combinations(model, images, labels: list[str], width: int, height: int) -> list[dict]:
-    """Accuracy de las 8 combinaciones, de mayor a menor (en empate se conserva el orden de prueba)."""
+    """Accuracy de cada combinación de color, escala y orden de clases, de mayor a menor (en empate se conserva el
+    orden de prueba). Con 2 clases son las 8 de 08 §2; con más, todas las permutaciones del orden de clases."""
+    classes = [c for c in CLASSES if c in set(labels)]
     results = []
     for color_order in COLOR_ORDERS:
         for scaling in SCALINGS:
             spec = InputSpec(width=width, height=height, color_order=color_order, scaling=scaling)
-            indices = predict_probs(model, images, spec).argmax(axis=1)
-            for order in CLASS_ORDERS:
+            probs = predict_probs(model, images, spec)
+            if probs.shape[1] != len(classes):
+                raise SystemExit(f"El modelo tiene {probs.shape[1]} salidas y el set {len(classes)} clases "
+                                 f"({', '.join(classes)}): usa un set con las mismas clases del modelo.")
+            indices = probs.argmax(axis=1)
+            for order in permutations(classes):
                 correct = sum(order[i] == label for i, label in zip(indices, labels, strict=True))
                 results.append({"color_order": color_order, "scaling": scaling, "classes": list(order),
                                 "correct": correct, "accuracy": correct / len(labels)})
@@ -83,7 +91,7 @@ def render(report: dict) -> str:
         f"- Set de calibración: `{report['data']}` — " + ", ".join(f"{k}: {v}" for k, v in report["counts"].items()),
         "- Imagen completa, sin filtro de vegetación (08-modelo-ia §2).",
         "",
-        "| # | Orden de color | Escala | Orden de clases (índice 0, 1) | Aciertos | Accuracy |",
+        "| # | Orden de color | Escala | Orden de clases (por índice de salida) | Aciertos | Accuracy |",
         "|---|---|---|---|---|---|",
     ]
     n = sum(report["counts"].values())

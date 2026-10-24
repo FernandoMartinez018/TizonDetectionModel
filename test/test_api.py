@@ -32,7 +32,7 @@ class TestAnalyze:
         data = response.json()
         assert data["status"] == "DETECTED"
         assert data["label"] == "TIZON_TARDIO"
-        assert data["probabilities"] == {"SANO": 0.08, "TIZON_TARDIO": 0.92}
+        assert data["probabilities"] == {"SANO": 0.08, "TIZON_TEMPRANO": None, "TIZON_TARDIO": 0.92}   # modelo de 2 clases
         assert len(data["regions"]) == 1
 
     def test_sin_hoja_es_resultado_valido_con_label_null(self, client, frame_b64):

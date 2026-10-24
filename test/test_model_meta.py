@@ -28,10 +28,16 @@ def test_carga_clases_en_el_orden_del_archivo(tmp_path):
     assert meta.min_confidence == 0.30
 
 
-@pytest.mark.parametrize("classes", [["SANO", "SANO"], ["SANO", "TIZON_TEMPRANO"], ["SANO"]])
-def test_rechaza_clases_fuera_del_alcance(tmp_path, classes):
+@pytest.mark.parametrize("classes", [["SANO", "SANO"], ["SANO", "TIZON_TEMPRANO"], ["SANO"], ["SANO", "MALEZA"],
+                                     ["SANO", "TIZON_TARDIO", "TIZON_TARDIO"]])
+def test_rechaza_clases_invalidas(tmp_path, classes):
     with pytest.raises(ValidationError):
         load_meta(_write(tmp_path, {**VALID, "classes": classes}))
+
+
+def test_acepta_tizon_temprano_y_no_papa(tmp_path):
+    classes = ["SANO", "TIZON_TEMPRANO", "TIZON_TARDIO", "NO_PAPA"]
+    assert load_meta(_write(tmp_path, {**VALID, "classes": classes})).classes == classes
 
 
 def test_lee_la_ruta_de_model_meta_path(tmp_path, monkeypatch):
@@ -41,7 +47,8 @@ def test_lee_la_ruta_de_model_meta_path(tmp_path, monkeypatch):
 
 def test_el_meta_del_repo_es_valido():
     meta = load_meta("models/model_meta.json")
-    assert sorted(meta.classes) == ["SANO", "TIZON_TARDIO"]
+    assert meta.classes == ["SANO", "TIZON_TEMPRANO", "TIZON_TARDIO", "NO_PAPA"]
+    assert (meta.input_spec.color_order, meta.input_spec.scaling) == ("RGB", "none")   # preprocesamiento en el modelo
 
 
 def test_sha256(tmp_path):

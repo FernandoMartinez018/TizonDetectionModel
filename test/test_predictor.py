@@ -8,9 +8,10 @@ import cv2
 import numpy as np
 import pytest
 
-from app.model_meta import InputSpec
+from app.model_meta import InputSpec, ModelMeta
 from app.predictor import Predictor, pick_main_region, preprocess
 from app.schemas import Probabilities, Region
+from test_vegetation import leaf_on_background
 
 
 # ── Helpers de test ────────────────────────────────────────────────────────
@@ -91,7 +92,7 @@ class TestPreprocess:
 
 
 def _region(label, confidence):
-    probs = {"SANO": 1 - confidence, "TIZON_TARDIO": confidence} if label == "TIZON_TARDIO"         else {"SANO": confidence, "TIZON_TARDIO": 1 - confidence}
+    probs = {"SANO": 0.0, "TIZON_TEMPRANO": 0.0, "TIZON_TARDIO": 0.0, label: confidence}
     return Region(x=0, y=0, width=0.5, height=0.5, label=label, confidence=confidence,
                   probabilities=Probabilities(**probs))
 
@@ -108,6 +109,53 @@ class TestPickMainRegion:
     def test_en_empate_de_clase_gana_la_mayor_confianza(self):
         main = pick_main_region([_region("SANO", 0.70), _region("SANO", 0.95)])
         assert main.confidence == 0.95
+
+    def test_tizon_tardio_gana_a_tizon_temprano_y_este_a_sano(self):
+        assert pick_main_region([_region("TIZON_TEMPRANO", 0.95), _region("TIZON_TARDIO", 0.55)]).label == "TIZON_TARDIO"
+        assert pick_main_region([_region("SANO", 0.99), _region("TIZON_TEMPRANO", 0.60)]).label == "TIZON_TEMPRANO"
+
+
+class _FakeModel:
+    """Mismas probabilidades para cada región. Salidas: SANO, TIZON_TEMPRANO, TIZON_TARDIO, NO_PAPA."""
+
+    class _Out:
+        def __init__(self, values):
+            self._values = values
+
+        def numpy(self):
+            return self._values
+
+    def __init__(self, probs):
+        self.probs = np.array(probs, dtype=np.float32)
+
+    def __call__(self, inputs, training=False):
+        return self._Out(np.tile(self.probs, (len(inputs[0]), 1)))
+
+
+def _four_output_predictor(probs) -> Predictor:
+    p = Predictor()
+    p.meta = ModelMeta(model_version="t", file="m.keras", classes=["SANO", "TIZON_TEMPRANO", "TIZON_TARDIO", "NO_PAPA"],
+                       input_spec={"width": 224, "height": 224, "color_order": "RGB", "scaling": "none"})
+    p._model = _FakeModel(probs)
+    p.is_ready = True
+    return p
+
+
+class TestPredictConCuatroSalidas:
+    leaf = image_to_bytes(leaf_on_background())
+
+    def test_hoja_de_otra_planta_no_se_analiza(self):
+        result = _four_output_predictor([0.05, 0.03, 0.02, 0.90]).predict(self.leaf)
+        assert (result.status, result.label, result.regions) == ("NOT_POTATO", None, [])
+
+    def test_tizon_temprano_sin_la_probabilidad_de_no_papa(self):
+        result = _four_output_predictor([0.05, 0.85, 0.04, 0.06]).predict(self.leaf)
+        assert (result.status, result.label) == ("DETECTED", "TIZON_TEMPRANO")
+        assert result.probabilities.model_dump() == {"SANO": 0.05, "TIZON_TEMPRANO": 0.85, "TIZON_TARDIO": 0.04}
+
+    def test_sin_hoja_sigue_siendo_no_vegetation(self):
+        blank = image_to_bytes(np.full((224, 224, 3), 255, np.uint8))
+        assert _four_output_predictor([0.0, 0.0, 0.0, 1.0]).predict(blank).status == "NO_VEGETATION"
 
 
 # ── Tests de instanciación ─────────────────────────────────────────────────
@@ -143,8 +191,8 @@ class TestPredictorInit:
 @pytest.mark.integration
 class TestPredictorIntegration:
     """
-    Requieren el .h5 real y su model_meta.json:
-        MODEL_PATH=../modelo_tizon_tardio.h5 pytest test/ -m integration
+    Requieren el modelo real (fuera de git) y su models/model_meta.json:
+        MODEL_PATH=../modelo_tizon_4c.keras pytest test/ -m integration
     """
 
     @pytest.fixture(scope="class")
@@ -159,9 +207,9 @@ class TestPredictorIntegration:
 
     def test_predict_imagen_verde_cumple_el_contrato(self, predictor_loaded):
         result = predictor_loaded.predict(image_to_bytes(create_green_image()))
-        assert result.status in ("DETECTED", "NO_VEGETATION")
+        assert result.status in ("DETECTED", "NO_VEGETATION", "NOT_POTATO")
         assert result.frame_width == 224 and result.frame_height == 224
         assert result.inference_ms >= 0
         for region in result.regions:
-            total = region.probabilities.SANO + region.probabilities.TIZON_TARDIO
-            assert abs(total - 1.0) < 0.01
+            p = region.probabilities
+            assert p.SANO + (p.TIZON_TEMPRANO or 0) + p.TIZON_TARDIO <= 1.01   # el resto es NO_PAPA

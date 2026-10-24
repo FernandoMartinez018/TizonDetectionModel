@@ -9,13 +9,13 @@ import numpy as np
 import tensorflow as tf
 
 from app import vegetation
-from app.model_meta import InputSpec, ModelMeta, load_meta, sha256_of
+from app.model_meta import NOT_POTATO, InputSpec, ModelMeta, load_meta, sha256_of
 from app.schemas import IaAnalyzeResponse, Probabilities, Region
 
 logger = logging.getLogger(__name__)
 
 # Resultado principal (contrato, doc 03): gana la clase más severa; en empate, la de mayor confianza.
-SEVERITY = {"SANO": 0, "TIZON_TARDIO": 1}
+SEVERITY = {"SANO": 0, "TIZON_TEMPRANO": 1, "TIZON_TARDIO": 2}
 
 class _DepthwiseConv2DCompat(tf.keras.layers.DepthwiseConv2D):
     """El .h5 se guardó con Keras 2.14, que serializa `groups`; Keras 3 (TF 2.16) no lo acepta.
@@ -95,16 +95,21 @@ class Predictor:
         ]
 
         regions: list[Region] = []
+        not_potato = 0
         if boxes:
             spec = self.meta.input_spec
             batch = np.stack([preprocess(frame[y : y + h, x : x + w], spec) for (x, y, w, h) in boxes])
             preds = self._model([batch], training=False).numpy()
             for (x, y, w, h), pred in zip(boxes, preds):
                 class_id = int(np.argmax(pred))
+                if self.meta.classes[class_id] == NOT_POTATO:   # hoja de otra planta: no se analiza el tizón
+                    not_potato += 1
+                    continue
                 confidence = float(pred[class_id])
                 if confidence < self.meta.min_confidence:
                     continue
-                probs = {c: round(float(pred[i]), 4) for i, c in enumerate(self.meta.classes)}
+                # Sin NO_PAPA: con el modelo de 4 salidas la suma puede ser < 1 (contrato, Probabilities).
+                probs = {c: round(float(pred[i]), 4) for i, c in enumerate(self.meta.classes) if c != NOT_POTATO}
                 regions.append(Region(
                     x=round(x / frame_w, 4),
                     y=round(y / frame_h, 4),
@@ -124,8 +129,9 @@ class Predictor:
             inference_ms=inference_ms,
         )
         if main is None:
-            # Sin hoja analizable: resultado válido, no es un error (contrato, regla 3).
-            return IaAnalyzeResponse(status="NO_VEGETATION", regions=[], **common)
+            # Sin hoja de papa analizable: resultado válido, no es un error (contrato, regla 3).
+            status = "NOT_POTATO" if not_potato else "NO_VEGETATION"
+            return IaAnalyzeResponse(status=status, regions=[], **common)
         return IaAnalyzeResponse(
             status="DETECTED",
             label=main.label,

@@ -11,10 +11,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-ClassId = Literal["SANO", "TIZON_TARDIO"]
+ClassId = Literal["SANO", "TIZON_TEMPRANO", "TIZON_TARDIO"]   # clases del contrato, en orden de severidad
+NOT_POTATO = "NO_PAPA"   # salida del modelo para hojas de otras plantas: no se analiza el tizón (status NOT_POTATO)
+ModelClass = Literal["SANO", "TIZON_TEMPRANO", "TIZON_TARDIO", "NO_PAPA"]
 
 DEFAULT_META_PATH = "models/model_meta.json"
-DEFAULT_MODEL_PATH = "models/modelo_tizon_tardio.h5"
+DEFAULT_MODEL_PATH = "models/modelo_tizon_4c.keras"
 
 
 class InputSpec(BaseModel):
@@ -30,15 +32,17 @@ class ModelMeta(BaseModel):
     model_version: str
     file: str
     sha256: str | None = None
-    classes: list[ClassId] = Field(description="Orden = índice de salida del modelo")
+    classes: list[ModelClass] = Field(description="Orden = índice de salida del modelo")
     input_spec: InputSpec
     min_confidence: float = Field(default=0.30, ge=0, le=1)
 
     @field_validator("classes")
     @classmethod
-    def _dos_clases_distintas(cls, v: list[str]) -> list[str]:
-        if sorted(v) != ["SANO", "TIZON_TARDIO"]:
-            raise ValueError("classes debe contener exactamente SANO y TIZON_TARDIO")
+    def _clases_validas(cls, v: list[str]) -> list[str]:
+        # TIZON_TEMPRANO y NO_PAPA son opcionales: el modelo anterior de 2 clases sigue sirviendo para volver atrás.
+        if len(set(v)) != len(v) or not {"SANO", "TIZON_TARDIO"} <= set(v):
+            raise ValueError("classes debe incluir SANO y TIZON_TARDIO, sin repetir "
+                             "(TIZON_TEMPRANO y NO_PAPA son opcionales)")
         return v
 
 

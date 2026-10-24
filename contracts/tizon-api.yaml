@@ -7,7 +7,8 @@ info:
     - Tag `publico`: API de Spring Boot consumida por la app Android. Base: `https://<host>/api`.
     - Tag `interno-ia`: API del servicio de IA, consumida SOLO por Spring en la red interna. Base: `http://ia:8000`.
     Convenciones: JSON en snake_case; fechas ISO-8601 con zona (`2026-11-08T10:15:00-05:00`);
-    identificadores técnicos de clase en MAYÚSCULAS sin tilde (SANO, TIZON_TARDIO); los textos visibles los resuelve la app.
+    identificadores técnicos de clase en MAYÚSCULAS sin tilde (SANO, TIZON_TEMPRANO, TIZON_TARDIO); los textos visibles
+    los resuelve la app.
 servers:
   - url: https://{host}/api
     description: API pública (Spring)
@@ -368,7 +369,10 @@ components:
           additionalProperties: { type: string }
 
     Role: { type: string, enum: [AGRICULTOR, TECNICO, ADMIN] }
-    ClassId: { type: string, enum: [SANO, TIZON_TARDIO] }
+    ClassId:
+      type: string
+      enum: [SANO, TIZON_TEMPRANO, TIZON_TARDIO]
+      description: En orden de severidad (resultado principal y desempates). Las afectadas se indican en AppConfig.classes.
     SessionStatus: { type: string, enum: [ACTIVE, COMPLETED, CANCELLED] }
     Severity:
       type: string
@@ -438,7 +442,7 @@ components:
             critical_pct: { type: number, example: 30 }
         alert_threshold_pct: { type: number, example: 30 }
         frame_interval_ms: { type: integer, example: 700, description: Pausa mínima sugerida entre frames }
-        model_version: { type: string, example: mobilenetv2-2c-2026.04 }
+        model_version: { type: string, example: mobilenetv2-3c-1a2b3c4d-20261024 }
 
     Location:
       type: object
@@ -479,9 +483,17 @@ components:
 
     Probabilities:
       type: object
+      description: |
+        Probabilidades de las clases de papa. El modelo actual tiene además una salida interna NO_PAPA (hojas de otras
+        plantas), así que la suma puede ser menor que 1.
       required: [SANO, TIZON_TARDIO]
       properties:
         SANO: { type: number, minimum: 0, maximum: 1 }
+        TIZON_TEMPRANO:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+          description: null o ausente con el modelo anterior de 2 clases.
         TIZON_TARDIO: { type: number, minimum: 0, maximum: 1 }
 
     FrameAnalysis:
@@ -492,11 +504,15 @@ components:
         session_id: { type: string, format: uuid }
         status:
           type: string
-          enum: [DETECTED, NO_VEGETATION]
-          description: NO_VEGETATION = no se encontró hoja analizable (resultado válido, se persiste)
+          enum: [DETECTED, NO_VEGETATION, NOT_POTATO]
+          description: |
+            Resultados válidos que se persisten. NO_VEGETATION = no se encontró hoja analizable. NOT_POTATO = la hoja
+            es de otra planta: no se analiza el tizón.
         label:
           oneOf: [ { $ref: '#/components/schemas/ClassId' }, { type: 'null' } ]
-          description: Resultado principal = clase más severa con confianza ≥ umbral; null si NO_VEGETATION
+          description: |
+            Resultado principal = clase más severa (TIZON_TARDIO > TIZON_TEMPRANO > SANO) con confianza ≥ umbral;
+            null si NO_VEGETATION o NOT_POTATO
         confidence: { type: [number, 'null'], minimum: 0, maximum: 1 }
         probabilities:
           oneOf: [ { $ref: '#/components/schemas/Probabilities' }, { type: 'null' } ]
@@ -511,12 +527,24 @@ components:
 
     SessionStats:
       type: object
-      required: [total_frames, analyzed_frames, affected_frames, no_vegetation_frames, affection_pct, severity]
+      required: [total_frames, analyzed_frames, affected_frames, no_vegetation_frames, not_potato_frames, affection_pct,
+                 severity, label_counts]
       properties:
-        total_frames: { type: integer, description: Frames persistidos (DETECTED + NO_VEGETATION) }
+        total_frames: { type: integer, description: Frames persistidos (DETECTED + NO_VEGETATION + NOT_POTATO) }
         analyzed_frames: { type: integer, description: Frames DETECTED }
-        affected_frames: { type: integer, description: Frames DETECTED con label TIZON_TARDIO }
+        affected_frames:
+          type: integer
+          description: Frames DETECTED cuya clase cuenta como afectada (AppConfig.classes[].affected) = TIZON_TEMPRANO + TIZON_TARDIO
+        label_counts:
+          type: object
+          description: Frames DETECTED por clase principal; la suma es analyzed_frames
+          required: [SANO, TIZON_TEMPRANO, TIZON_TARDIO]
+          properties:
+            SANO: { type: integer }
+            TIZON_TEMPRANO: { type: integer }
+            TIZON_TARDIO: { type: integer }
         no_vegetation_frames: { type: integer }
+        not_potato_frames: { type: integer, description: Frames con hojas de otras plantas (sin análisis de tizón) }
         affection_pct: { type: number, description: affected_frames / analyzed_frames × 100 (0 si analyzed=0) }
         severity: { $ref: '#/components/schemas/Severity' }
         avg_confidence: { type: [number, 'null'], description: Promedio solo sobre frames DETECTED }
@@ -585,8 +613,10 @@ components:
         model_version: { type: string }
         classes:
           type: array
-          items: { $ref: '#/components/schemas/ClassId' }
-          description: Orden = índice de salida del modelo
+          items: { type: string, enum: [SANO, TIZON_TEMPRANO, TIZON_TARDIO, NO_PAPA] }
+          description: |
+            Salidas del modelo; orden = índice de salida. NO_PAPA es interna (hojas de otras plantas → status
+            NOT_POTATO) y nunca aparece como label.
         input_spec:
           type: object
           properties:
@@ -606,7 +636,7 @@ components:
       type: object
       required: [status, regions, frame_width, frame_height, model_version, inference_ms]
       properties:
-        status: { type: string, enum: [DETECTED, NO_VEGETATION] }
+        status: { type: string, enum: [DETECTED, NO_VEGETATION, NOT_POTATO] }
         label: { oneOf: [ { $ref: '#/components/schemas/ClassId' }, { type: 'null' } ] }
         confidence: { type: [number, 'null'] }
         probabilities: { oneOf: [ { $ref: '#/components/schemas/Probabilities' }, { type: 'null' } ] }

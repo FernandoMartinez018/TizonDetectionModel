@@ -52,8 +52,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Tizón Tardío — Servicio de IA",
     description=(
-        "API interna (solo red Docker). Clasifica regiones de hoja de papa como "
-        "SANO o TIZON_TARDIO. Contrato: contracts/tizon-api.yaml (tag interno-ia)."
+        "API interna (solo red Docker). Clasifica regiones de hoja como SANO, TIZON_TEMPRANO o TIZON_TARDIO; "
+        "si la hoja no es de papa responde NOT_POTATO sin analizar el tizón. "
+        "Contrato: contracts/tizon-api.yaml (tag interno-ia)."
     ),
     version="2.0.0",
     docs_url="/docs",

@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
     TF_CPP_MIN_LOG_LEVEL=2 \
     APP_ENV=production \
     LOG_FORMAT=json \
-    MODEL_PATH=/models/modelo_tizon_tardio.h5 \
+    MODEL_PATH=/models/modelo_tizon_4c.keras \
     MODEL_META_PATH=/models/model_meta.json
 
 WORKDIR /app

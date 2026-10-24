@@ -1,6 +1,7 @@
 """Utilidades compartidas por calibrate, evaluate y audit: dataset, métricas, pHash y reportes."""
 from __future__ import annotations
 
+import csv
 import datetime as dt
 import json
 import os
@@ -10,11 +11,16 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from app.model_meta import InputSpec
+from app.model_meta import NOT_POTATO, InputSpec
 from app.predictor import preprocess
 
-CLASSES = ("SANO", "TIZON_TARDIO")   # carpetas esperadas: <dir>/SANO y <dir>/TIZON_TARDIO
-POSITIVE = "TIZON_TARDIO"
+# Carpetas <dir>/<CLASE>: las de papa en orden de severidad y NO_PAPA (hojas de otras plantas, que la IA rechaza sin
+# analizar el tizón). SANO y TIZON_TARDIO son obligatorias; las otras son opcionales para poder evaluar también el
+# modelo anterior de 2 clases.
+POTATO_CLASSES = ("SANO", "TIZON_TEMPRANO", "TIZON_TARDIO")
+CLASSES = (*POTATO_CLASSES, NOT_POTATO)
+REQUIRED_CLASSES = ("SANO", "TIZON_TARDIO")
+POSITIVE = "TIZON_TARDIO"   # clase positiva de las métricas del PDF (uno contra el resto)
 IMAGE_EXTS = (".jpg", ".jpeg", ".png")
 REPORTS_DIR = Path(__file__).parent / "reports"
 
@@ -37,14 +43,23 @@ METRIC_NAMES = {
 PHASH_MAX_DISTANCE = 6
 
 
-def load_dataset(root: Path) -> list[tuple[Path, str]]:
-    """Pares (imagen, clase) de <root>/SANO y <root>/TIZON_TARDIO. Falla si una clase no tiene imágenes."""
+def load_dataset(root: Path, manifest: Path | None = None, split: str | None = None) -> list[tuple[Path, str]]:
+    """Pares (imagen, clase) de <root>/<CLASE>. Falla si falta SANO o TIZON_TARDIO.
+
+    Con `manifest` (training/split.csv) solo se toman las imágenes de la partición `split`.
+    """
+    wanted = None
+    if manifest:
+        with manifest.open(encoding="utf-8", newline="") as f:
+            wanted = {row["file"] for row in csv.DictReader(f) if row["split"] == split}
     samples: list[tuple[Path, str]] = []
     for label in CLASSES:
         folder = root / label
         files = sorted(p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXTS) if folder.is_dir() else []
-        if not files:
-            raise SystemExit(f"No hay imágenes {'/'.join(IMAGE_EXTS)} en {folder}")
+        if wanted is not None:
+            files = [p for p in files if f"{label}/{p.name}" in wanted]
+        if not files and label in REQUIRED_CLASSES:
+            raise SystemExit(f"No hay imágenes {'/'.join(IMAGE_EXTS)} en {folder}" + (f" (partición {split})" if split else ""))
         samples += [(p, label) for p in files]
     return samples
 
@@ -70,25 +85,36 @@ def predict_probs(model, images: list[np.ndarray], spec: InputSpec, batch: int =
     return np.concatenate(out)
 
 
-def binary_metrics(y_true: list[str], y_pred: list[str]) -> dict:
-    """Métricas con positivo = TIZON_TARDIO. Una razón sin denominador vale 0 (no alcanza la meta)."""
-    pairs = list(zip(y_true, y_pred, strict=True))
-    tp = sum(t == POSITIVE and p == POSITIVE for t, p in pairs)
-    fn = sum(t == POSITIVE and p != POSITIVE for t, p in pairs)
-    fp = sum(t != POSITIVE and p == POSITIVE for t, p in pairs)
-    tn = len(pairs) - tp - fn - fp
+def classification_metrics(y_true: list[str], y_pred: list[str]) -> dict:
+    """Matriz de confusión, accuracy global y métricas de cada clase contra el resto.
 
+    Metas del PDF: accuracy y tasa de error globales; precision, recall, F1 y especificidad de TIZON_TARDIO (con 2
+    clases equivale al caso binario). Una razón sin denominador vale 0 (no alcanza la meta).
+    """
     def ratio(a: float, b: float) -> float:
         return a / b if b else 0.0
 
-    precision, recall = ratio(tp, tp + fp), ratio(tp, tp + fn)
-    accuracy = ratio(tp + tn, len(pairs))
-    return {
-        "n": len(pairs), "tp": tp, "fn": fn, "fp": fp, "tn": tn,
-        "accuracy": accuracy, "precision": precision, "recall": recall,
-        "f1": ratio(2 * precision * recall, precision + recall),
-        "specificity": ratio(tn, tn + fp), "error_rate": 1 - accuracy,
-    }
+    present = set(y_true) | set(y_pred)
+    labels = [c for c in CLASSES if c in present or c in REQUIRED_CLASSES]
+    confusion = {t: dict.fromkeys(labels, 0) for t in labels}
+    for t, p in zip(y_true, y_pred, strict=True):
+        confusion[t][p] += 1
+    n = len(y_true)
+    per_class = {}
+    for c in labels:
+        tp = confusion[c][c]
+        fn = sum(confusion[c].values()) - tp
+        fp = sum(confusion[t][c] for t in labels) - tp
+        precision, recall = ratio(tp, tp + fp), ratio(tp, tp + fn)
+        per_class[c] = {"support": tp + fn, "tp": tp, "fn": fn, "fp": fp, "tn": n - tp - fn - fp,
+                        "precision": precision, "recall": recall,
+                        "f1": ratio(2 * precision * recall, precision + recall),
+                        "specificity": ratio(n - tp - fn - fp, n - tp - fn)}
+    accuracy = ratio(sum(confusion[c][c] for c in labels), n)
+    pos = per_class[POSITIVE]
+    return {"n": n, "accuracy": accuracy, "error_rate": 1 - accuracy,
+            **{k: pos[k] for k in ("tp", "fn", "fp", "tn", "precision", "recall", "f1", "specificity")},
+            "confusion": confusion, "per_class": per_class}
 
 
 def check_targets(metrics: dict) -> list[dict]:
@@ -136,8 +162,16 @@ def pct(value: float) -> str:
 
 
 def machine() -> str:
-    """Identifica dónde se midió la latencia (la meta RNF-REN-02 aplica en la EC2)."""
-    return f"{platform.node()} · {platform.platform()} · {os.cpu_count()} CPU"
+    """Dónde se midió la latencia (la meta RNF-REN-02 aplica en la EC2), sin el nombre del equipo."""
+    return f"{platform.platform()} · {os.cpu_count()} CPU"
+
+
+def relative(path: str | Path, root: Path) -> str:
+    """Ruta dentro del set de datos, para no publicar rutas locales en los reportes."""
+    try:
+        return Path(path).relative_to(root).as_posix()
+    except ValueError:
+        return Path(path).name
 
 
 def write_report(stem: str, data: dict, markdown: str, out_dir: Path) -> Path:

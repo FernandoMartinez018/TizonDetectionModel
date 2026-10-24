@@ -8,6 +8,7 @@ pydantic==2.7.1
 # ── Machine Learning ───────────────────────────────────────────────────────
 # tensorflow-cpu: imagen más liviana; el .h5 (Keras 2.14) carga con el ajuste de F4-IA-01.
 tensorflow-cpu==2.16.1
+keras==3.15.1             # la versión con que se guardó modelo_tizon_4c.keras (training/train.py)
 numpy==1.26.4
 
 # ── Visión por computadora ─────────────────────────────────────────────────

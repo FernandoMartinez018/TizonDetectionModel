@@ -12,7 +12,7 @@ from openapi_core import OpenAPI
 from openapi_core.testing import MockRequest, MockResponse
 
 import app.main as main_module
-from fakes import NO_VEGETATION, fake_predictor
+from fakes import DETECTED_EARLY, META_4C, NO_VEGETATION, NOT_POTATO, fake_predictor
 
 SPEC = OpenAPI.from_file_path(str(Path(__file__).parents[1] / "contracts" / "tizon-api.yaml"))
 
@@ -29,6 +29,13 @@ def test_health(client):
     assert_cumple_contrato("get", "/health", client.get("/health"))
 
 
+def test_health_con_cuatro_salidas(client):
+    main_module._predictor = fake_predictor(meta=META_4C)
+    response = client.get("/health")
+    assert response.json()["classes"] == ["SANO", "TIZON_TEMPRANO", "TIZON_TARDIO", "NO_PAPA"]
+    assert_cumple_contrato("get", "/health", response)
+
+
 def test_health_degradado(client):
     main_module._predictor = None
     assert_cumple_contrato("get", "/health", client.get("/health"))
@@ -40,9 +47,12 @@ def test_analyze_detected(client, frame_b64):
     assert_cumple_contrato("post", "/v1/analyze", response)
 
 
-def test_analyze_no_vegetation(client, frame_b64):
-    main_module._predictor = fake_predictor(NO_VEGETATION)
-    assert_cumple_contrato("post", "/v1/analyze", client.post("/v1/analyze", json={"frame_b64": frame_b64}))
+@pytest.mark.parametrize("result", [NO_VEGETATION, NOT_POTATO, DETECTED_EARLY], ids=lambda r: r.label or r.status)
+def test_analyze_otros_resultados(client, frame_b64, result):
+    main_module._predictor = fake_predictor(result)
+    response = client.post("/v1/analyze", json={"frame_b64": frame_b64})
+    assert response.json()["status"] == result.status
+    assert_cumple_contrato("post", "/v1/analyze", response)
 
 
 @pytest.mark.parametrize("body, status", [({"frame_b64": "@" * 120}, 400), ({"frame_b64": "abc"}, 422)])

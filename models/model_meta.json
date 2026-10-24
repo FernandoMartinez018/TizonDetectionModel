@@ -1,14 +1,25 @@
 {
-  "model_version": "mobilenetv2-2c-v1-sin-calibrar",
-  "file": "modelo_tizon_tardio.h5",
-  "sha256": "7fa2c0d6192d0f052fc59da91ff47d96f7ac61569d94fa9f16573d2d26e04e60",
-  "classes": ["SANO", "TIZON_TARDIO"],
-  "input_spec": { "width": 224, "height": 224, "color_order": "BGR", "scaling": "unit" },
-  "min_confidence": 0.30,
-  "calibration": {
-    "date": null,
-    "n_images": 0,
-    "accuracy": null,
-    "notes": "PROVISIONAL: replica el preprocesamiento y el orden de clases del código v1. El orden y la escala reales se verifican en F4-IA-02 (evaluation/calibrate.py)."
+  "model_version": "mobilenetv2-4c-02b1cb27-20261024",
+  "file": "modelo_tizon_4c.keras",
+  "sha256": "02b1cb276fed2ab35e709dfe86ddc5d39563a3d920119bf90d1f753d006f0416",
+  "classes": [
+    "SANO",
+    "TIZON_TEMPRANO",
+    "TIZON_TARDIO",
+    "NO_PAPA"
+  ],
+  "input_spec": {
+    "width": 224,
+    "height": 224,
+    "color_order": "RGB",
+    "scaling": "none"
+  },
+  "min_confidence": 0.3,
+  "training": {
+    "date": "2026-10-24",
+    "source": "PlantVillage (github.com/spMohanty/PlantVillage-Dataset, raw/color): papa completa (sana, tizón temprano, tizón tardío) y, como NO_PAPA, 30 hojas por cada tipo de otros 13 cultivos",
+    "seed": 42,
+    "split": "training/split.csv",
+    "test_accuracy": 0.9562
   }
 }

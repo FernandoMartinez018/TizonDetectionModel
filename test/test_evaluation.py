@@ -54,7 +54,7 @@ class TestMetricas:
     def test_positivo_es_tizon(self):
         y_true = ["TIZON_TARDIO"] * 4 + ["SANO"] * 6
         y_pred = ["TIZON_TARDIO"] * 3 + ["SANO"] * 6 + ["TIZON_TARDIO"]
-        m = common.binary_metrics(y_true, y_pred)
+        m = common.classification_metrics(y_true, y_pred)
         assert (m["tp"], m["fn"], m["fp"], m["tn"]) == (3, 1, 1, 5)
         assert m["accuracy"] == pytest.approx(0.8)
         assert m["precision"] == pytest.approx(0.75)
@@ -64,8 +64,18 @@ class TestMetricas:
         assert m["error_rate"] == pytest.approx(0.2)
 
     def test_sin_predicciones_positivas_no_divide_por_cero(self):
-        m = common.binary_metrics(["TIZON_TARDIO", "SANO"], ["SANO", "SANO"])
+        m = common.classification_metrics(["TIZON_TARDIO", "SANO"], ["SANO", "SANO"])
         assert m["precision"] == 0 and m["recall"] == 0 and m["f1"] == 0
+
+    def test_cuatro_clases_accuracy_global_y_tardio_contra_el_resto(self):
+        y_true = ["SANO", "TIZON_TEMPRANO", "TIZON_TEMPRANO", "TIZON_TARDIO", "TIZON_TARDIO", "NO_PAPA"]
+        y_pred = ["SANO", "TIZON_TEMPRANO", "TIZON_TARDIO", "TIZON_TARDIO", "TIZON_TARDIO", "SANO"]
+        m = common.classification_metrics(y_true, y_pred)
+        assert m["accuracy"] == pytest.approx(4 / 6)              # global, no binaria
+        assert (m["tp"], m["fn"], m["fp"], m["tn"]) == (2, 0, 1, 3)   # TIZON_TARDIO contra el resto
+        assert m["precision"] == pytest.approx(2 / 3) and m["specificity"] == pytest.approx(3 / 4)
+        assert m["confusion"]["NO_PAPA"]["SANO"] == 1
+        assert m["per_class"]["TIZON_TEMPRANO"]["recall"] == pytest.approx(0.5)
 
     def test_formato_del_documento(self):
         assert common.num(1500, 0) == "1.500"
@@ -107,6 +117,21 @@ class TestCalibracion:
         assert code == 1   # 3 por clase < 30
         assert meta_file.read_text(encoding="utf-8") == before
 
+    def test_con_mas_clases_prueba_todas_las_permutaciones(self, tmp_path):
+        class ThreeOutputs:
+            def __call__(self, inputs, training=False):
+                return np.tile([0.2, 0.3, 0.5], (len(inputs[0]), 1))
+
+        root = write_set(tmp_path / "cal")
+        (root / "TIZON_TEMPRANO").mkdir()
+        shutil.copy(root / "SANO" / "0.png", root / "TIZON_TEMPRANO" / "0.png")
+        samples = common.load_dataset(root)
+        images = [common.read_bgr(p) for p, _ in samples]
+        assert len(calibrate.score_combinations(ThreeOutputs(), images, [lab for _, lab in samples], 224, 224)) == 24
+        two = [(img, lab) for img, (_, lab) in zip(images, samples) if lab != "TIZON_TEMPRANO"]
+        with pytest.raises(SystemExit, match="3 salidas y el set 2 clases"):
+            calibrate.score_combinations(ThreeOutputs(), [i for i, _ in two], [lab for _, lab in two], 224, 224)
+
     def test_margen_menor_a_5_puntos_pide_ampliar_el_set(self):
         results = [{"accuracy": 0.80}, {"accuracy": 0.77}]
         problems = calibrate.problems_of({"SANO": 30, "TIZON_TARDIO": 30}, results)
@@ -123,6 +148,18 @@ class TestEvaluacion:
         assert report["no_vegetation"] == {"SANO": 1, "TIZON_TARDIO": 1}
         assert report["no_vegetation_tizon_ratio"] == 0.5
         assert report["errors"] == [{"file": "t2", "true": "TIZON_TARDIO", "pred": "NO_VEGETATION"}]
+
+    def test_hojas_que_no_son_de_papa(self):
+        samples = [(Path("p1"), "NO_PAPA"), (Path("p2"), "NO_PAPA"), (Path("p3"), "NO_PAPA"), (Path("s1"), "SANO"),
+                   (Path("e1"), "TIZON_TEMPRANO")]
+        answers = {"p1": "NOT_POTATO", "p2": "NO_VEGETATION", "p3": "TIZON_TARDIO", "s1": "NOT_POTATO",
+                   "e1": "TIZON_TEMPRANO"}
+        report = evaluate.evaluate(samples, lambda p: (answers[p.name], 10.0))
+        c = report["metrics"]["confusion"]
+        assert c["NO_PAPA"]["NO_PAPA"] == 2      # NOT_POTATO y NO_VEGETATION: no se analiza, como se espera
+        assert c["NO_PAPA"]["TIZON_TARDIO"] == 1 and c["SANO"]["NO_PAPA"] == 1
+        assert report["potato_discrimination"]["potato_rejected"] == pytest.approx(1 / 2)
+        assert report["potato_discrimination"]["not_potato_accepted"] == pytest.approx(1 / 3)
 
     def test_modo_classifier_genera_el_reporte(self, tmp_path, meta_file, fake_model_file):
         meta = json.loads(meta_file.read_text(encoding="utf-8"))

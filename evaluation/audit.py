@@ -18,12 +18,16 @@ from pathlib import Path
 import numpy as np
 
 from evaluation.common import (
-    CLASSES, PHASH_MAX_DISTANCE, REPORTS_DIR, decode_bgr, load_dataset, near_duplicates, num, phash, today,
+    CLASSES, PHASH_MAX_DISTANCE, REPORTS_DIR, decode_bgr, load_dataset, near_duplicates, num, phash, relative, today,
     write_report,
 )
 
 
-def audit(samples: list[tuple[Path, str]], sample_size: int = 20, seed: int = 42) -> dict:
+def audit(samples: list[tuple[Path, str]], sample_size: int = 20, seed: int = 42, root: Path | None = None) -> dict:
+    """`root`: carpeta del set, para que el reporte muestre rutas relativas a ella."""
+    def name(p) -> str:
+        return relative(p, root) if root else str(p)
+
     by_sha: dict[str, list[tuple[Path, str]]] = defaultdict(list)
     sizes: dict[str, list[tuple[int, int]]] = defaultdict(list)
     hashes: dict[str, int] = {}
@@ -32,21 +36,22 @@ def audit(samples: list[tuple[Path, str]], sample_size: int = 20, seed: int = 42
         data = path.read_bytes()
         img = decode_bgr(data)
         if img is None:
-            unreadable.append(str(path))
+            unreadable.append(name(path))
             continue
         by_sha[hashlib.sha256(data).hexdigest()].append((path, label))
         sizes[label].append((img.shape[1], img.shape[0]))
-        hashes[str(path)] = phash(img)
+        hashes[name(path)] = phash(img)
 
-    exact = [[str(p) for p, _ in group] for group in by_sha.values() if len(group) > 1]
-    conflicts = [[f"{p} ({label})" for p, label in group] for group in by_sha.values()
+    exact = [[name(p) for p, _ in group] for group in by_sha.values() if len(group) > 1]
+    conflicts = [[f"{name(p)} ({label})" for p, label in group] for group in by_sha.values()
                  if len({label for _, label in group}) > 1]
     exact_pairs = {frozenset(map(str, (a, b))) for group in exact for a in group for b in group if a != b}
     near = [(a, b, d) for a, b, d in near_duplicates(hashes) if frozenset((a, b)) not in exact_pairs]
 
-    counts = {c: sum(1 for _, label in samples if label == c) for c in CLASSES}
+    present = [c for c in CLASSES if any(label == c for _, label in samples)]
+    counts = {c: sum(1 for _, label in samples if label == c) for c in present}
     rng = random.Random(seed)
-    per_class = {c: [str(p) for p, label in samples if label == c] for c in CLASSES}
+    per_class = {c: [name(p) for p, label in samples if label == c] for c in present}
     return {
         "counts": counts,
         "imbalance": round(max(counts.values()) / min(counts.values()), 2),
@@ -106,8 +111,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reports", type=Path, default=REPORTS_DIR)
     args = parser.parse_args(argv)
 
-    report = {"date": today(), **audit(load_dataset(args.data), args.sample, args.seed)}
-    md = write_report("dataset_audit", report, render(report, str(args.data)), args.reports)
+    report = {"date": today(), **audit(load_dataset(args.data), args.sample, args.seed, args.data)}
+    md = write_report("dataset_audit", report, render(report, args.data.name), args.reports)
     print(f"Reporte: {md}")
     return 0
 
