@@ -67,9 +67,35 @@ def test_la_region_incluye_la_lesion_conectada():
     assert sick[2] * sick[3] >= 0.8 * healthy[2] * healthy[3]
 
 
-def test_suelo_marron_sin_verde_no_es_hoja():
-    soil = _textured(np.full((480, 640, 3), (30, 70, 110), np.uint8))
-    assert vegetation.detect_regions(soil) == []
+@pytest.mark.parametrize("size", [(480, 640), (960, 1280)])
+def test_suelo_marron_sin_verde_no_es_hoja(size):
+    # El ruido puede dejar regiones candidatas, pero ninguna pasa la validación: el suelo no se analiza.
+    soil = _textured(np.full((*size, 3), (30, 70, 110), np.uint8))
+    assert not any(vegetation.is_valid_leaf(_roi(soil, box)) for box in vegetation.detect_regions(soil))
+
+
+def test_hoja_amarillenta_por_clorosis_se_acepta():
+    """Tizón temprano avanzado: la hoja está amarilla y solo las nervaduras siguen verdes."""
+    h, w = 480, 640
+    img = np.full((h, w, 3), (200, 200, 200), np.uint8)
+    leaf = np.zeros((h, w), np.uint8)
+    cv2.ellipse(leaf, (w // 2, h // 2), (w // 5, h // 4), 20, 0, 360, 255, cv2.FILLED)
+    veins = np.zeros_like(leaf)
+    axis, normal = np.array([0.94, 0.34]), np.array([-0.34, 0.94])   # eje mayor de la elipse (20°) y su normal
+    center = np.array([w // 2, h // 2])
+    cv2.line(veins, tuple((center - 120 * axis).astype(int)), tuple((center + 120 * axis).astype(int)), 255, 6)
+    for t in (-80, -40, 0, 40, 80):
+        p = center + t * axis
+        cv2.line(veins, tuple((p - 110 * normal).astype(int)), tuple((p + 110 * normal).astype(int)), 255, 6)
+    img[leaf > 0] = (40, 190, 210)                     # amarillo (BGR)
+    img[(veins > 0) & (leaf > 0)] = (40, 130, 50)      # nervaduras verdes
+    img = _textured(img)
+
+    regions = vegetation.detect_regions(img)
+    assert len(regions) == 1
+    roi = _roi(img, regions[0])
+    assert vegetation.green_ratio(roi) < vegetation.MIN_TISSUE_RATIO, "con el filtro anterior se descartaba"
+    assert vegetation.is_valid_leaf(roi)
 
 
 @pytest.mark.parametrize("color", [(0, 0, 200), (0, 0, 0), (255, 255, 255)])
