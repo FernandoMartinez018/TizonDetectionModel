@@ -60,17 +60,31 @@ def near_duplicate_groups(files: list[Path]) -> list[list[Path]]:
     return sorted(groups.values(), key=lambda g: g[0].name)
 
 
-def assign_splits(samples: list[tuple[Path, str]], seed: int) -> dict[Path, str]:
+def assign_splits(samples: list[tuple[Path, str]], seed: int, existing: dict[str, str] | None = None,
+                  new_shares: tuple = SHARES) -> dict[Path, str]:
+    """Partición estratificada por clase; los casi duplicados quedan juntos.
+
+    `existing` ("CLASE/archivo" → partición, de un split.csv anterior): esos archivos conservan su partición y los
+    nuevos que son casi duplicados de ellos la heredan, para comparar modelos con la misma prueba. El resto de los
+    nuevos se reparte con `new_shares` (cortes acumulados; lo que queda después es test).
+    """
+    existing = existing or {}
     rng = random.Random(seed)
     split_of: dict[Path, str] = {}
     for label in CLASSES:
         files = [p for p, lab in samples if lab == label]
         groups = near_duplicate_groups(files)
         rng.shuffle(groups)
-        done = 0
+        fresh = []
         for group in groups:
-            share = done / len(files)
-            split = next((name for name, cut in SHARES if share < cut), "test")
+            known = [existing[f"{label}/{p.name}"] for p in group if f"{label}/{p.name}" in existing]
+            if known:
+                split_of.update({p: existing.get(f"{label}/{p.name}", known[0]) for p in group})
+            else:
+                fresh.append(group)
+        total, done = sum(len(g) for g in fresh), 0
+        for group in fresh:
+            split = next((name for name, cut in new_shares if done / total < cut), "test")
             split_of.update(dict.fromkeys(group, split))
             done += len(group)
     return split_of
@@ -161,7 +175,8 @@ def render(report: dict) -> str:
         "",
         f"- Modelo: `{report['model_version']}` (`{report['model_file']}`, sha256 `{report['model_sha256']}`)",
         f"- Datos: {report['source'] or 'sin documentar (usa --source)'}",
-        f"- Partición (semilla {report['seed']}, `training/split.csv`): "
+        f"- Partición (semilla {report['seed']}, `training/split.csv`; {report['kept']} imágenes conservan la "
+        f"partición anterior y {report['added']} se agregaron): "
         + "; ".join(f"{s}: " + ", ".join(f"{c} {n}" for c, n in report["split_counts"][s].items())
                     for s in ("train", "val", "test")),
         "- MobileNetV2 (ImageNet) con el preprocesamiento dentro del modelo; aumento de datos y pesos por clase "
@@ -182,8 +197,8 @@ def render(report: dict) -> str:
     lines += ["", "Matriz de confusión (filas: real, columnas: predicho):", "",
               "| | " + " | ".join(labels) + " |", "|---" * (len(labels) + 1) + "|"]
     lines += [f"| {t} | " + " | ".join(str(m["confusion"][t][p]) for p in labels) + " |" for t in labels]
-    lines += ["", "Limitación: PlantVillage son fotos de laboratorio (una hoja sobre fondo uniforme). Estas métricas no "
-                  "miden el desempeño en campo; para eso hace falta el set de fotos propias (P-02).", ""]
+    lines += ["", "Limitación: esta prueba es la partición test de training/split.csv (fotos de laboratorio de "
+                  "PlantVillage). El desempeño con fotos de campo se mide aparte (reportes campo-*, P-02).", ""]
     return "\n".join(lines)
 
 
@@ -197,6 +212,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--fine-tune-epochs", type=int, default=8)
     parser.add_argument("--reports", type=Path, default=REPORTS_DIR)
+    parser.add_argument("--keep-split", type=Path, help="split.csv anterior: sus archivos conservan la partición")
+    parser.add_argument("--new-shares", default="0.70,0.85",
+                        help="Cortes acumulados train,val para los archivos nuevos (p. ej. 0.85,1.0: ninguno a test)")
     args = parser.parse_args(argv)
 
     import keras
@@ -208,7 +226,12 @@ def main(argv: list[str] | None = None) -> int:
     samples = load_dataset(args.data)
     if {label for _, label in samples} != set(CLASSES):
         raise SystemExit(f"El entrenamiento necesita las carpetas {', '.join(CLASSES)}")
-    split_of = assign_splits(samples, args.seed)
+    existing = {}
+    if args.keep_split:
+        with args.keep_split.open(encoding="utf-8", newline="") as f:
+            existing = {row["file"]: row["split"] for row in csv.DictReader(f)}
+    train_cut, val_cut = (float(v) for v in args.new_shares.split(","))
+    split_of = assign_splits(samples, args.seed, existing, (("train", train_cut), ("val", val_cut)))
     write_split(samples, split_of, SPLIT_FILE)
 
     x = np.stack([preprocess(read_bgr(p), SPEC).astype(np.uint8) for p, _ in samples])   # RGB 0–255, sin escalar
@@ -242,6 +265,8 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         "date": today(), "source": args.source, "seed": args.seed, "model_version": meta["model_version"],
         "model_file": args.model_out.name, "model_sha256": sha, "split_counts": split_counts,
+        "kept": sum(f"{label}/{p.name}" in existing for p, label in samples),
+        "added": sum(f"{label}/{p.name}" not in existing for p, label in samples),
         "class_weight": {CLASSES[i]: w for i, w in class_weight.items()},
         "epochs": {phase: len(h["loss"]) for phase, h in history.items()},
         "history": history, "test_metrics": metrics,
