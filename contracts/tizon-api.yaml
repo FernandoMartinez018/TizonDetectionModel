@@ -571,9 +571,12 @@ components:
 
     Recommendation:
       type: object
-      required: [severity, text, source]
+      description: >-
+        Recomendación agronómica para la enfermedad que predominó entre los frames afectados de la sesión
+        (mayoría de TIZON_TEMPRANO o de TIZON_TARDIO; en empate, TIZON_TARDIO). Sin frames afectados la lista va vacía.
+      required: [disease, text, source]
       properties:
-        severity: { $ref: '#/components/schemas/Severity' }
+        disease: { $ref: '#/components/schemas/ClassId', description: TIZON_TEMPRANO o TIZON_TARDIO }
         text: { type: string }
         source: { type: string, description: Referencia bibliográfica o institucional del texto }
 
