@@ -62,6 +62,14 @@ Los datos van **fuera del repositorio** (o en `evaluation/data/`, ignorada por g
 `SANO/`, `TIZON_TEMPRANO/`, `TIZON_TARDIO/` y `NO_PAPA/`. Los reportes quedan en `evaluation/reports/` (`.md` y
 `.json`) y sí se versionan como evidencia. Las imágenes nunca se versionan.
 
+`training/sources.csv` dice de dónde salió cada imagen (`file`, `uso`, `dataset`, `url`): las de `training/split.csv`
+y las del set de campo (`uso` = `campo`; `retirada` = repetidas en el entrenamiento). Para reconstruir un set, se
+descarga cada `url` en `<dir>/<file>` y se compara con el `sha256` de `split.csv`. Las de PlantVillage se guardan tal
+cual. Las de PlantDoc y las sanas extra de PlantVillage (`pd_*`, `pv_*`) se guardaron como JPEG de calidad 90, con el
+lado mayor de 640 px como máximo (OpenCV 4.9, `INTER_AREA`). Los sufijos `_r2` y `_r3` son copias del sobremuestreo.
+Licencias: PlantDoc es CC BY 4.0; el repositorio de PlantVillage no declara licencia, así que sus imágenes no se
+redistribuyen.
+
 ```bash
 # 1. Entrenamiento reproducible (semilla 42): partición 70/15/15 sin casi duplicados entre particiones,
 #    guardada en training/split.csv. Actualiza models/model_meta.json y deja el reporte de entrenamiento.
@@ -74,8 +82,18 @@ python -m evaluation.evaluate --data <dir> --mode classifier --model ../modelo_t
 python -m evaluation.evaluate --data <dir> --mode pipeline --model ../modelo_tizon_4c.keras \
     --manifest training/split.csv --split test --train-split train --source "origen"
 
-# 3. Auditoría del dataset → evaluation/reports/dataset_audit.md
+# 3. Set de campo u otro set externo: --tag separa sus reportes (<fecha>_<tag>_<modo>.md); --train busca
+#    fotos repetidas entre ese set y el de entrenamiento. Solo la carpeta TIZON_TARDIO es obligatoria.
+python -m evaluation.evaluate --data <set_campo> --mode pipeline --model ../modelo_tizon_4c.keras \
+    --tag campo-propio --train <dir> --source "origen"
+
+# 4. Auditoría del dataset → evaluation/reports/dataset_audit.md
 python -m evaluation.audit --data <dir>
+
+# Reentrenar con más datos sin cambiar la prueba: los archivos de split.csv conservan su partición y los nuevos
+# van solo a train/val. Con --meta y --reports fuera del repo, el modelo en uso no cambia hasta adoptarlo.
+python -m training.train --data <dir> --model-out ../<modelo_nuevo>.keras --keep-split training/split.csv \
+    --new-shares 0.85,1.0 --meta <copia de model_meta.json> --reports <carpeta temporal> --source "origen"
 
 # Para un modelo de origen desconocido: orden de clases y preprocesamiento (F4-IA-02).
 python -m evaluation.calibrate --data <set_calibracion> --model <modelo> --write
@@ -100,6 +118,24 @@ Resultados del 24-oct (PlantVillage, partición de prueba de 479 imágenes que e
   desempeño en campo; para eso hacen falta fotos propias (P-02). `NO_PAPA` solo conoce 13 cultivos de PlantVillage.
 - La latencia del reporte es la de la máquina donde corre (queda anotada). La meta de RNF-REN-02 aplica en la EC2.
 - Las métricas se reportan aunque no alcancen la meta. No se ajusta el set de prueba para mejorar los números.
+
+**Campo (PlantDoc, 274 fotos que ningún modelo vio: 38 de tizón temprano, 32 de tardío y 204 de otras especies; no hay
+papa sana).** Reportes `2026-10-24_campo-plantdoc_*` (modelo en uso) y `2026-10-24_v2-campo-plantdoc_*` (candidato v2):
+
+| `pipeline` | Modelo en uso (`modelo_tizon_4c.keras`) | Candidato v2 (`modelo_tizon_4c_v2.keras`) |
+|---|---|---|
+| Accuracy (global) | 73,7 % | 73,4 % |
+| Recall de tizón tardío | 6,2 % | 59,4 % |
+| F1 de tizón tardío / temprano | 8,2 % / 21,7 % | 52,8 % / 38,3 % |
+| Hojas de papa rechazadas como `NO_PAPA` | 72,9 % | 15,7 % |
+| Hojas de otras plantas aceptadas como papa | 4,4 % | 19,6 % |
+
+- El modelo en uso no sirve con fotos de campo: rechaza casi todas las hojas de papa. Su accuracy es la de responder
+  siempre "no es papa" (204 de 274 = 74,5 %), así que la accuracy global no sirve para compararlos en este set.
+- El candidato v2 agrega al entrenamiento 137 fotos de campo de papa con tizón (repetidas 3 veces) y 789 hojas de
+  otras plantas (`2026-10-24_entrenamiento_v2.md`). En laboratorio sigue cumpliendo todas las metas
+  (`2026-10-24_v2_*`: accuracy 96,0 % `classifier` y 93,7 % `pipeline`). **No se adoptó solo:** la regla fijada de
+  antemano pedía mejorar la accuracy en campo y quedó igual. La decisión es del usuario (`docs/requerimientos/08-modelo-ia.md` §8).
 
 ## Docker
 ```bash

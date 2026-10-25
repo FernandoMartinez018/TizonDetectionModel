@@ -1,0 +1,493 @@
+{
+  "date": "2026-10-24",
+  "mode": "classifier",
+  "data": "eval_field",
+  "source": "PlantDoc (fotos de campo, CC-BY-4.0): toda su partición test (papa y otras especies) y el 30 % de las hojas de papa de su partición train, apartado por grupos de casi duplicados. No hay papa sana. Ninguna foto se usó para entrenar. Se retiraron 6 fotos que PlantDoc repite en su partición train (5 con otra etiqueta: la misma imagen como tizón tardío y como temprano, o como tomate)",
+  "tag": "campo-plantdoc",
+  "split_note": "",
+  "model_version": "mobilenetv2-4c-02b1cb27-20261024",
+  "model_file": "modelo_tizon_4c.keras",
+  "model_sha256": "02b1cb276fed2ab35e709dfe86ddc5d39563a3d920119bf90d1f753d006f0416",
+  "machine": "Windows-11-10.0.26200-SP0 · 14 CPU",
+  "counts": {
+    "TIZON_TEMPRANO": 38,
+    "TIZON_TARDIO": 32,
+    "NO_PAPA": 204
+  },
+  "metrics": {
+    "n": 274,
+    "accuracy": 0.7445255474452555,
+    "error_rate": 0.25547445255474455,
+    "tp": 3,
+    "fn": 29,
+    "fp": 12,
+    "tn": 230,
+    "precision": 0.2,
+    "recall": 0.09375,
+    "f1": 0.12765957446808512,
+    "specificity": 0.9504132231404959,
+    "confusion": {
+      "TIZON_TEMPRANO": {
+        "TIZON_TEMPRANO": 5,
+        "TIZON_TARDIO": 7,
+        "NO_PAPA": 26
+      },
+      "TIZON_TARDIO": {
+        "TIZON_TEMPRANO": 1,
+        "TIZON_TARDIO": 3,
+        "NO_PAPA": 28
+      },
+      "NO_PAPA": {
+        "TIZON_TEMPRANO": 3,
+        "TIZON_TARDIO": 5,
+        "NO_PAPA": 196
+      }
+    },
+    "per_class": {
+      "TIZON_TEMPRANO": {
+        "support": 38,
+        "tp": 5,
+        "fn": 33,
+        "fp": 4,
+        "tn": 232,
+        "precision": 0.5555555555555556,
+        "recall": 0.13157894736842105,
+        "f1": 0.2127659574468085,
+        "specificity": 0.9830508474576272
+      },
+      "TIZON_TARDIO": {
+        "support": 32,
+        "tp": 3,
+        "fn": 29,
+        "fp": 12,
+        "tn": 230,
+        "precision": 0.2,
+        "recall": 0.09375,
+        "f1": 0.12765957446808512,
+        "specificity": 0.9504132231404959
+      },
+      "NO_PAPA": {
+        "support": 204,
+        "tp": 196,
+        "fn": 8,
+        "fp": 54,
+        "tn": 16,
+        "precision": 0.784,
+        "recall": 0.9607843137254902,
+        "f1": 0.8634361233480177,
+        "specificity": 0.22857142857142856
+      }
+    }
+  },
+  "targets": [
+    {
+      "metric": "accuracy",
+      "op": ">=",
+      "target": 0.9,
+      "value": 0.7445255474452555,
+      "ok": false
+    },
+    {
+      "metric": "precision",
+      "op": ">=",
+      "target": 0.9,
+      "value": 0.2,
+      "ok": false
+    },
+    {
+      "metric": "recall",
+      "op": ">=",
+      "target": 0.9,
+      "value": 0.09375,
+      "ok": false
+    },
+    {
+      "metric": "f1",
+      "op": ">=",
+      "target": 0.9,
+      "value": 0.12765957446808512,
+      "ok": false
+    },
+    {
+      "metric": "specificity",
+      "op": ">=",
+      "target": 0.85,
+      "value": 0.9504132231404959,
+      "ok": true
+    },
+    {
+      "metric": "error_rate",
+      "op": "<=",
+      "target": 0.1,
+      "value": 0.25547445255474455,
+      "ok": false
+    }
+  ],
+  "latency": {
+    "mean_ms": 243.9,
+    "p95_ms": 323.7
+  },
+  "no_vegetation": {
+    "TIZON_TEMPRANO": 0,
+    "TIZON_TARDIO": 0,
+    "NO_PAPA": 0
+  },
+  "no_vegetation_tizon_ratio": 0.0,
+  "errors": [
+    {
+      "file": "TIZON_TEMPRANO/pd_test_Potato_leaf_early_blight__000_3023.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_test_Potato_leaf_early_blight__001_backus_056_potato_blight.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_test_Potato_leaf_early_blight__003_early_blight_or_target_s.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_test_Potato_leaf_early_blight__004_earlyblightpotato.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_test_Potato_leaf_early_blight__005_potato_blight_phytophtho.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_test_Potato_leaf_early_blight__007_potatobd001.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__001_0042241.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__010_18028_1.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__012_20100816earlyblight.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__019_3785483636_d888419c98_o.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__025_87A_Pot_Early.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__036_Early_Blight_of_Tomato17.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__038_IMG_0014.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__039_IMG_0020.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__043_PHYTIN23_img.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__047_Potato_blight_on_leaf.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__048_Potato_earlyblight2.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__052_agriculture_potato_early.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__056_blight_leaf_top.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__057_blighted_potatoe_leave.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__064_early_blight_courtesy_Me.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__065_early_blight_or_target_s.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__074_fac66s01a.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__079_maxresdefault.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__081_potato_blight_damage_on_.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__082_potato_blight_leaf.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__087_potato_blight_phytophtho.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__089_potato_early_blight_alte.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__092_potato_early_blight_alte.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__096_potato_alternaria_03_zoo.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__100_potato_early_blight_03_z.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__101_potato_early_blight_04_z.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/pd_train_Potato_leaf_early_blight__105_potatoearlyblight.jpg",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_test_Potato_leaf_late_blight__001_20090710_lateblight.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_test_Potato_leaf_late_blight__002_2540_600.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_test_Potato_leaf_late_blight__004_B2750109_Late_blight_on_.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_test_Potato_leaf_late_blight__005_LateBlight04.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_test_Potato_leaf_late_blight__007_potato_late_blight.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__002_24064_1.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__003_24847793510_7859b46a3d.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__004_2619_600.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__006_2976_1600.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__009_39_late_blight_mold.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__010_4_late_blight_cmyk_opt_j.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__014_6a00d8341c4fe353ef011571.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__023_Jessore_potato_late_blig.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__024_LB_potato_leaf_topside.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__027_Late_Blight_336x437.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__031_Late_blight_on_leaf_emai.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "TIZON_TEMPRANO"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__040_Potato_Late_Blight_3_062.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__046_White_mould_potato_bligh.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__048_backus_056_potato_blight.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__049_blight_on_potato_leaves.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__050_cropped_symptom_potato_l.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__058_gcp_A_2_Late_Blight_of_p.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__061_late_blight_leaves.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__066_late.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__068_late_blight_potato_leaf_.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__077_phytophthora_infestans_l.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__083_potato_late_blight_phyto.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__087_potato_late_blight_02_zo.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "TIZON_TARDIO/pd_train_Potato_leaf_late_blight__094_potatolb_symptoms_meg_co.jpg",
+      "true": "TIZON_TARDIO",
+      "pred": "NO_PAPA"
+    },
+    {
+      "file": "NO_PAPA/pd_test_Apple_rust_leaf__001_0605_Rust_induced_leafsp.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TEMPRANO"
+    },
+    {
+      "file": "NO_PAPA/pd_test_Apple_Scab_Leaf__008_apples_apple_scab_02_thm.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TEMPRANO"
+    },
+    {
+      "file": "NO_PAPA/pd_test_Blueberry_leaf__002_blueberry_leaves_normal_.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "NO_PAPA/pd_test_Blueberry_leaf__003_blueberrysilverleaf16_13.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TEMPRANO"
+    },
+    {
+      "file": "NO_PAPA/pd_test_Tomato_Early_blight_leaf__001_100983448.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "NO_PAPA/pd_test_Tomato_leaf_late_blight__000_110822_206_Tomato_blight.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "NO_PAPA/pd_test_Tomato_leaf_late_blight__001_18c.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "NO_PAPA/pd_test_Tomato_leaf_late_blight__007_dsc_8148cs.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    }
+  ],
+  "potato_discrimination": {
+    "potato_rejected": 0.7714285714285715,
+    "not_potato_accepted": 0.039215686274509776
+  },
+  "overlap": null
+}
