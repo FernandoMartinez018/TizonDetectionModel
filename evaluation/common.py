@@ -15,11 +15,11 @@ from app.model_meta import NOT_POTATO, InputSpec
 from app.predictor import preprocess
 
 # Carpetas <dir>/<CLASE>: las de papa en orden de severidad y NO_PAPA (hojas de otras plantas, que la IA rechaza sin
-# analizar el tizón). SANO y TIZON_TARDIO son obligatorias; las otras son opcionales para poder evaluar también el
-# modelo anterior de 2 clases.
+# analizar el tizón). Solo TIZON_TARDIO es obligatoria (clase positiva de las metas del PDF): así se evalúa también
+# el modelo anterior de 2 clases y sets de campo sin hojas sanas, como PlantDoc.
 POTATO_CLASSES = ("SANO", "TIZON_TEMPRANO", "TIZON_TARDIO")
 CLASSES = (*POTATO_CLASSES, NOT_POTATO)
-REQUIRED_CLASSES = ("SANO", "TIZON_TARDIO")
+REQUIRED_CLASSES = ("TIZON_TARDIO",)
 POSITIVE = "TIZON_TARDIO"   # clase positiva de las métricas del PDF (uno contra el resto)
 IMAGE_EXTS = (".jpg", ".jpeg", ".png")
 REPORTS_DIR = Path(__file__).parent / "reports"
@@ -44,7 +44,7 @@ PHASH_MAX_DISTANCE = 6
 
 
 def load_dataset(root: Path, manifest: Path | None = None, split: str | None = None) -> list[tuple[Path, str]]:
-    """Pares (imagen, clase) de <root>/<CLASE>. Falla si falta SANO o TIZON_TARDIO.
+    """Pares (imagen, clase) de <root>/<CLASE>. Falla si falta TIZON_TARDIO.
 
     Con `manifest` (training/split.csv) solo se toman las imágenes de la partición `split`.
     """

@@ -123,7 +123,7 @@ def train_set(args) -> list[tuple[Path, str]]:
 def render(report: dict) -> str:
     m, mode = report["metrics"], report["mode"]
     lines = [
-        f"# Evaluación del modelo — modo `{mode}` — {report['date']}",
+        f"# Evaluación del modelo — modo `{mode}`{' — ' + report['tag'] if report.get('tag') else ''} — {report['date']}",
         "",
         f"- Modelo: `{report['model_version']}` (`{report['model_file']}`, sha256 `{report['model_sha256']}`)",
         f"- Set de prueba: `{report['data']}`{report['split_note']} — origen: "
@@ -200,6 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--train-split", help="Con --manifest: compara contra esa partición (p. ej. train) del mismo set")
     parser.add_argument("--source", default="", help="Origen del set de prueba (se documenta en el reporte)")
     parser.add_argument("--reports", type=Path, default=REPORTS_DIR)
+    parser.add_argument("--tag", default="", help="Nombre del set en el reporte (p. ej. campo-plantdoc)")
     args = parser.parse_args(argv)
 
     samples = load_dataset(args.data, args.manifest, args.split if args.manifest else None)
@@ -219,14 +220,15 @@ def main(argv: list[str] | None = None) -> int:
         for pair in ov["exact"] + ov["near"]:
             pair["test"], pair["train"] = relative(pair["test"], args.data), relative(pair["train"], args.train or args.data)
     report = {
-        "date": today(), "mode": args.mode, "data": args.data.name, "source": args.source,
+        "date": today(), "mode": args.mode, "data": args.data.name, "source": args.source, "tag": args.tag,
         "split_note": f" (partición `{args.split}` de `{args.manifest.as_posix()}`)" if args.manifest else "",
         "model_version": meta.model_version, "model_file": args.model.name, "model_sha256": sha256_of(args.model),
         "machine": machine(),
         **result,
         "overlap": ov,
     }
-    md = write_report(f"{report['date']}_{args.mode}", report, render(report), args.reports)
+    stem = "_".join(filter(None, (report["date"], args.tag, args.mode)))
+    md = write_report(stem, report, render(report), args.reports)
     print(f"Reporte: {md}")
     return 0
 
