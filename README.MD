@@ -146,6 +146,10 @@ La imagen corre con un usuario sin privilegios y su `HEALTHCHECK` solo pasa si e
 `training/` ni `evaluation/`. En el sistema completo se levanta con `../deploy/docker-compose.yml`, sin publicar el
 puerto 8000.
 
+## Despliegue en la nube
+
+Guía paso a paso para desplegar todo el sistema (ejemplo en AWS), con la APK, el servidor y la operación: [docs/despliegue-en-la-nube.md](docs/despliegue-en-la-nube.md).
+
 ## CI/CD (GitHub Actions)
 `.github/workflows/ci.yml` corre en cada push y PR a `dev`, `qa` y `main`: ruff, pytest (sin las pruebas de
 integración, que requieren el modelo) y gitleaks. En cada push a `qa` o `main` publica la imagen
