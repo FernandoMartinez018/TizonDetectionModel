@@ -5,3 +5,14 @@ __pycache__/
 .git
 .gitignore
 .env
+.venv/
+.github/
+.pytest_cache/
+.ruff_cache/
+test/
+models/
+*.h5
+*.keras
+evaluation/
+training/
+contracts/
