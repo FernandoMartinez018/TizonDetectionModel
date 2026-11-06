@@ -1,7 +1,7 @@
 {
-  "model_version": "mobilenetv2-4c-02b1cb27-20261024",
-  "file": "modelo_tizon_4c.keras",
-  "sha256": "02b1cb276fed2ab35e709dfe86ddc5d39563a3d920119bf90d1f753d006f0416",
+  "model_version": "mobilenetv2-4c-a7c205d2-20261024",
+  "file": "modelo_tizon_4c_v2.keras",
+  "sha256": "a7c205d2c8a85dc9b00d435ef270b5d3e9b3f232b9e73e59cf2fb399e7a42da6",
   "classes": [
     "SANO",
     "TIZON_TEMPRANO",
@@ -17,9 +17,9 @@
   "min_confidence": 0.3,
   "training": {
     "date": "2026-10-24",
-    "source": "PlantVillage (github.com/spMohanty/PlantVillage-Dataset, raw/color): papa completa (sana, tizón temprano, tizón tardío) y, como NO_PAPA, 30 hojas por cada tipo de otros 13 cultivos",
+    "source": "PlantVillage (github.com/spMohanty/PlantVillage-Dataset, raw/color): papa completa y 1.490 hojas de otros 13 cultivos como NO_PAPA; PlantDoc (github.com/pratikkayal/PlantDoc-Dataset, CC-BY-4.0, fotos de campo): 137 hojas de papa con tizón (repetidas 3 veces) y 349 de otras especies como NO_PAPA. Todo PlantDoc test y el 30 % de la papa de PlantDoc train quedan fuera para la prueba de campo",
     "seed": 42,
     "split": "training/split.csv",
-    "test_accuracy": 0.9562
+    "test_accuracy": 0.9603
   }
 }
