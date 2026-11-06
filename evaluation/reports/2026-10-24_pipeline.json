@@ -1,0 +1,318 @@
+{
+  "date": "2026-10-24",
+  "mode": "pipeline",
+  "data": "plantvillage",
+  "source": "PlantVillage (github.com/spMohanty/PlantVillage-Dataset, raw/color), partición de prueba de training/split.csv: papa (sana, tizón temprano, tizón tardío) y otros 13 cultivos como NO_PAPA",
+  "split_note": " (partición `test` de `training/split.csv`)",
+  "model_version": "mobilenetv2-4c-02b1cb27-20261024",
+  "model_file": "modelo_tizon_4c.keras",
+  "model_sha256": "02b1cb276fed2ab35e709dfe86ddc5d39563a3d920119bf90d1f753d006f0416",
+  "machine": "Windows-11-10.0.26200-SP0 · 14 CPU",
+  "counts": {
+    "SANO": 22,
+    "TIZON_TEMPRANO": 150,
+    "TIZON_TARDIO": 150,
+    "NO_PAPA": 157
+  },
+  "metrics": {
+    "n": 479,
+    "accuracy": 0.9436325678496869,
+    "error_rate": 0.056367432150313146,
+    "tp": 146,
+    "fn": 4,
+    "fp": 8,
+    "tn": 321,
+    "precision": 0.948051948051948,
+    "recall": 0.9733333333333334,
+    "f1": 0.9605263157894737,
+    "specificity": 0.9756838905775076,
+    "confusion": {
+      "SANO": {
+        "SANO": 21,
+        "TIZON_TEMPRANO": 0,
+        "TIZON_TARDIO": 0,
+        "NO_PAPA": 1
+      },
+      "TIZON_TEMPRANO": {
+        "SANO": 6,
+        "TIZON_TEMPRANO": 140,
+        "TIZON_TARDIO": 3,
+        "NO_PAPA": 1
+      },
+      "TIZON_TARDIO": {
+        "SANO": 1,
+        "TIZON_TEMPRANO": 0,
+        "TIZON_TARDIO": 146,
+        "NO_PAPA": 3
+      },
+      "NO_PAPA": {
+        "SANO": 4,
+        "TIZON_TEMPRANO": 3,
+        "TIZON_TARDIO": 5,
+        "NO_PAPA": 145
+      }
+    },
+    "per_class": {
+      "SANO": {
+        "support": 22,
+        "tp": 21,
+        "fn": 1,
+        "fp": 11,
+        "tn": 446,
+        "precision": 0.65625,
+        "recall": 0.9545454545454546,
+        "f1": 0.7777777777777778,
+        "specificity": 0.975929978118162
+      },
+      "TIZON_TEMPRANO": {
+        "support": 150,
+        "tp": 140,
+        "fn": 10,
+        "fp": 3,
+        "tn": 326,
+        "precision": 0.9790209790209791,
+        "recall": 0.9333333333333333,
+        "f1": 0.9556313993174061,
+        "specificity": 0.9908814589665653
+      },
+      "TIZON_TARDIO": {
+        "support": 150,
+        "tp": 146,
+        "fn": 4,
+        "fp": 8,
+        "tn": 321,
+        "precision": 0.948051948051948,
+        "recall": 0.9733333333333334,
+        "f1": 0.9605263157894737,
+        "specificity": 0.9756838905775076
+      },
+      "NO_PAPA": {
+        "support": 157,
+        "tp": 145,
+        "fn": 12,
+        "fp": 5,
+        "tn": 317,
+        "precision": 0.9666666666666667,
+        "recall": 0.9235668789808917,
+        "f1": 0.9446254071661238,
+        "specificity": 0.984472049689441
+      }
+    }
+  },
+  "targets": [
+    {
+      "metric": "accuracy",
+      "op": ">=",
+      "target": 0.9,
+      "value": 0.9436325678496869,
+      "ok": true
+    },
+    {
+      "metric": "precision",
+      "op": ">=",
+      "target": 0.9,
+      "value": 0.948051948051948,
+      "ok": true
+    },
+    {
+      "metric": "recall",
+      "op": ">=",
+      "target": 0.9,
+      "value": 0.9733333333333334,
+      "ok": true
+    },
+    {
+      "metric": "f1",
+      "op": ">=",
+      "target": 0.9,
+      "value": 0.9605263157894737,
+      "ok": true
+    },
+    {
+      "metric": "specificity",
+      "op": ">=",
+      "target": 0.85,
+      "value": 0.9756838905775076,
+      "ok": true
+    },
+    {
+      "metric": "error_rate",
+      "op": "<=",
+      "target": 0.1,
+      "value": 0.056367432150313146,
+      "ok": true
+    }
+  ],
+  "latency": {
+    "mean_ms": 99.4,
+    "p95_ms": 120.3
+  },
+  "no_vegetation": {
+    "SANO": 0,
+    "TIZON_TEMPRANO": 6,
+    "TIZON_TARDIO": 0,
+    "NO_PAPA": 9
+  },
+  "no_vegetation_tizon_ratio": 0.0,
+  "errors": [
+    {
+      "file": "SANO/ec6e43d3-512d-4908-99f2-c9e2a0be54be___RS_HL 4202.JPG",
+      "true": "SANO",
+      "pred": "NOT_POTATO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/1d301622-e359-49d5-b4ca-6837f254fd1b___RS_Early.B 6719.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_VEGETATION"
+    },
+    {
+      "file": "TIZON_TEMPRANO/31d0ecc8-045d-4a4a-ac33-431556c83e4c___RS_Early.B 8692.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NOT_POTATO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/357b61ef-a56b-4207-aa26-161b0ef3e635___RS_Early.B 8492.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/541f3dc9-a330-4caf-97f3-88bec1b60c53___RS_Early.B 7767.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_VEGETATION"
+    },
+    {
+      "file": "TIZON_TEMPRANO/7a84da2c-6c10-483f-9994-69aeedc21a57___RS_Early.B 7534.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_VEGETATION"
+    },
+    {
+      "file": "TIZON_TEMPRANO/8c1f94fb-d8e0-4607-a967-b71408dfd1ab___RS_Early.B 8723.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_VEGETATION"
+    },
+    {
+      "file": "TIZON_TEMPRANO/8f3f9eed-1a3d-4f0f-adcc-0fe3a832d95f___RS_Early.B 8518.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TEMPRANO/ad8c76f3-16b3-4d7f-a9e9-cbec8c398d34___RS_Early.B 6694.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_VEGETATION"
+    },
+    {
+      "file": "TIZON_TEMPRANO/cac99520-3403-4602-961d-3a668bb980fb___RS_Early.B 7388.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "NO_VEGETATION"
+    },
+    {
+      "file": "TIZON_TEMPRANO/f686133a-e89a-4242-a52d-02f32ffd5275___RS_Early.B 8295.JPG",
+      "true": "TIZON_TEMPRANO",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "TIZON_TARDIO/84e85005-c647-4381-8762-c487074c9571___RS_LB 5186.JPG",
+      "true": "TIZON_TARDIO",
+      "pred": "NOT_POTATO"
+    },
+    {
+      "file": "TIZON_TARDIO/96879d98-11ca-40c7-9708-9ca8f235f407___RS_LB 2739.JPG",
+      "true": "TIZON_TARDIO",
+      "pred": "NOT_POTATO"
+    },
+    {
+      "file": "TIZON_TARDIO/bd632f59-ff1c-452f-b504-053fa95ab000___RS_LB 4356.JPG",
+      "true": "TIZON_TARDIO",
+      "pred": "NOT_POTATO"
+    },
+    {
+      "file": "TIZON_TARDIO/d9817cc3-ef03-41e5-8892-1fddd27b7bcc___RS_LB 4878.JPG",
+      "true": "TIZON_TARDIO",
+      "pred": "SANO"
+    },
+    {
+      "file": "NO_PAPA/Blueberry_healthy__16d7d729-30a4-426a-b4d9-c615e33dabe2.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "NO_PAPA/Blueberry_healthy__811c4a45-2217-418f-834d-e782bd8f9f57.jpg",
+      "true": "NO_PAPA",
+      "pred": "SANO"
+    },
+    {
+      "file": "NO_PAPA/Cherry_including_sour_Powdery_mildew__c82e8bfd-a4d6-448f-9c6c-1da54df1e12f.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TEMPRANO"
+    },
+    {
+      "file": "NO_PAPA/Cherry_including_sour_Powdery_mildew__df3c80e0-e479-4b11-b488-f527fe8f8777.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "NO_PAPA/Soybean_healthy__045dba20-7120-47d2-b7dc-86cdbe77580b.jpg",
+      "true": "NO_PAPA",
+      "pred": "SANO"
+    },
+    {
+      "file": "NO_PAPA/Soybean_healthy__1b957666-ac0a-4f3d-a7f7-627a53972c9b.jpg",
+      "true": "NO_PAPA",
+      "pred": "SANO"
+    },
+    {
+      "file": "NO_PAPA/Soybean_healthy__29ca525d-7049-4262-b65a-dcfe1a063035.jpg",
+      "true": "NO_PAPA",
+      "pred": "SANO"
+    },
+    {
+      "file": "NO_PAPA/Strawberry_Leaf_scorch__70309299-2d91-4b08-b449-7c8bf8c477e9.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TEMPRANO"
+    },
+    {
+      "file": "NO_PAPA/Strawberry_Leaf_scorch__c5aa66d1-22cf-48af-a622-a9fbbd0d2c00.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TEMPRANO"
+    },
+    {
+      "file": "NO_PAPA/Tomato_Late_blight__34ce281a-ca92-4f89-a074-157fcedabf4c.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "NO_PAPA/Tomato_Late_blight__4780302b-3329-4f1f-a697-67698af1d261.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    },
+    {
+      "file": "NO_PAPA/Tomato_Leaf_Mold__6371bae8-f9d4-4b4c-88d7-96de89c4c14a.jpg",
+      "true": "NO_PAPA",
+      "pred": "TIZON_TARDIO"
+    }
+  ],
+  "potato_discrimination": {
+    "potato_rejected": 0.015527950310559006,
+    "not_potato_accepted": 0.07643312101910826
+  },
+  "overlap": {
+    "exact": [],
+    "near": [
+      {
+        "test": "SANO/57e262fc-e0ba-44db-a967-5ba6f1826e49___RS_HL 1897.JPG",
+        "train": "TIZON_TARDIO/5759c134-1965-4dd2-b71a-4eef4048f962___RS_LB 3975.JPG",
+        "distance": 6
+      },
+      {
+        "test": "TIZON_TARDIO/0f243024-b1fa-4f96-ac7e-ecaf6dc5bc37___RS_LB 4925.JPG",
+        "train": "SANO/1dcfeaa9-006d-470c-b3e5-d67609d07d4e___RS_HL 1808.JPG",
+        "distance": 6
+      },
+      {
+        "test": "TIZON_TARDIO/ea06da1e-81c9-4e2e-8266-1f3d56914ff3___RS_LB 2701.JPG",
+        "train": "NO_PAPA/Soybean_healthy__114e4945-280e-4acd-821c-73d01552fbf7.jpg",
+        "distance": 6
+      }
+    ]
+  }
+}

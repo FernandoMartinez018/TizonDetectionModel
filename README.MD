@@ -1,473 +1,154 @@
-# 🌿 Tizón Tardío — Servicio Python (FastAPI)
-
-Servicio de detección de Tizón Temprano y Tardío en cultivos de papa.
-Recibe frames en Base64 desde Spring Boot, los analiza con TensorFlow
-y retorna etiquetas de clasificación con bounding boxes en coordenadas relativas.
-
----
-
-## Estructura de carpetas
-
-```
-tizon-python/
-│
-├── app/                          ← Código fuente principal
-│   ├── __init__.py
-│   ├── main.py                   ← FastAPI app + handler Lambda (Mangum)
-│   ├── predictor.py              ← Lógica ML: carga modelo, detección, inferencia
-│   └── schemas.py                ← Modelos Pydantic (request / response)
-│
-├── model/
-│   └── .gitkeep                  ← Coloca aquí modelo_tizon_tardio.h5 para local
-│                                   (el .h5 está en .gitignore — va a S3 en AWS)
-│
-├── tests/
-│   ├── __init__.py
-│   ├── test_api.py               ← Tests de integración de endpoints
-│   └── test_predictor.py         ← Tests unitarios de la lógica ML
-│
-├── scripts/
-│   ├── upload_model.sh           ← Sube el modelo .h5 a S3
-│   ├── deploy_aws.sh             ← Deploy completo a AWS Lambda
-│   └── test_local.sh             ← Prueba rápida del servicio local
-│
-├── .env.example                  ← Plantilla de variables de entorno
-├── .env                          ← Tu config local (NO commitear)
-├── .gitignore
-├── Dockerfile                    ← Multistage: "lambda" (prod) y "dev" (local)
-├── docker-compose.yml            ← Levanta el servicio local con hot-reload
-├── requirements.txt              ← Dependencias de producción
-├── requirements-dev.txt          ← Dependencias de desarrollo y tests
-├── template.yaml                 ← SAM template para despliegue en AWS Lambda
-└── README.md
-```
-
----
-
-## ¿Cómo funciona?
-
-```
-Móvil (Kotlin)
-    │  Frame JPEG → Base64
-    ▼
-Spring Boot  ──POST /analyze──▶  Este servicio (Python / FastAPI)
-                                       │
-                                       ├─ Detecta regiones verdes (OpenCV + HSV)
-                                       ├─ Filtra vegetación real (textura + color)
-                                       ├─ Clasifica con TensorFlow (.h5)
-                                       └─ Retorna JSON con label + bboxes
-```
-
-**Respuesta de ejemplo:**
-```json
-{
-  "label": "Tizon Tardio",
-  "confidence": 0.92,
-  "probabilities": {
-    "Sano": 0.03,
-    "Tizon Temprano": 0.05,
-    "Tizon Tardio": 0.92
-  },
-  "bounding_boxes": [
-    {
-      "x": 0.12, "y": 0.20, "width": 0.35, "height": 0.40,
-      "label": "Tizon Tardio",
-      "confidence": 0.92,
-      "probabilities": { "Sano": 0.03, "Tizon Temprano": 0.05, "Tizon Tardio": 0.92 }
-    }
-  ],
-  "is_vegetation": true,
-  "frame_width": 224,
-  "frame_height": 224,
-  "session_id": "uuid-de-la-sesion"
-}
-```
-
----
-
-## OPCIÓN A — Local SIN Docker
-
-### Requisitos previos
-- Python 3.10, 3.11 o 3.12 instalado
-- pip actualizado
-- Tu archivo `modelo_tizon_tardio.h5` entrenado
-
-### Paso 1 — Entrar al proyecto
-```bash
-cd tizon-python
-ls   # debe ver: app/  model/  tests/  scripts/  Dockerfile  ...
-```
-
-### Paso 2 — Crear entorno virtual
-```bash
-python3 -m venv .venv
-
-# Activar (Linux / Mac):
-source .venv/bin/activate
-
-# Activar (Windows PowerShell):
-# .venv\Scripts\Activate.ps1
-
-# Verificar: debe aparecer (.venv) al inicio del prompt
-which python
-```
-
-### Paso 3 — Instalar dependencias
-```bash
-pip install -r requirements-dev.txt
-# Tarda 3-5 minutos la primera vez (TensorFlow es grande)
-```
-
-### Paso 4 — Colocar el modelo
-```bash
-cp /ruta/a/tu/modelo_tizon_tardio.h5 model/
-
-# Verificar:
-ls -lh model/
-# -rw-r--r-- ... 87M modelo_tizon_tardio.h5
-```
-
-### Paso 5 — Configurar variables de entorno
-```bash
-cp .env.example .env
-# Editar .env:
-nano .env
-```
-
-Contenido mínimo del `.env` para local:
-```bash
-APP_ENV=local
-LOCAL_MODEL_PATH=model/modelo_tizon_tardio.h5
-HOST=0.0.0.0
-PORT=8000
-RELOAD=true
-LOG_LEVEL=info
-```
-
-### Paso 6 — Arrancar el servidor
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Salida esperada:
-```
-INFO  | Iniciando Tizón Tardío Detection API
-INFO  | Entorno: local
-INFO  | Cargando modelo desde: model/modelo_tizon_tardio.h5
-INFO  | Modelo cargado y listo. Servicio listo.
-INFO  | Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-```
-
-### Paso 7 — Verificar
-```bash
-# Health check
-curl http://localhost:8000/health
-# {"status":"ok","model_loaded":true,"environment":"local",...}
-
-# Documentación interactiva (abrir en navegador):
-# http://localhost:8000/docs
-```
-
----
-
-## OPCIÓN B — Local CON Docker (recomendado)
-
-No necesitas instalar Python ni dependencias en tu máquina.
-
-### Requisitos
-- Docker Desktop instalado y corriendo
-- Tu archivo `modelo_tizon_tardio.h5`
-
-### Pasos
-
-```bash
-# 1. Colocar el modelo
-cp /ruta/a/tu/modelo_tizon_tardio.h5 model/
-
-# 2. Copiar variables de entorno (valores por defecto ya son correctos para local)
-cp .env.example .env
-
-# 3. Levantar el servicio
-docker-compose up
-
-# Para correr en segundo plano:
-docker-compose up -d
-
-# Ver logs:
-docker-compose logs -f tizon-python
-```
-
-Salida esperada (igual que sin Docker):
-```
-tizon-python-dev  | INFO  | Modelo cargado y listo. Servicio listo.
-tizon-python-dev  | INFO  | Uvicorn running on http://0.0.0.0:8000
-```
-
-```bash
-# Verificar:
-curl http://localhost:8000/health
-
-# Swagger UI: http://localhost:8000/docs
-```
-
-**Hot-reload activo:** cualquier cambio en `app/*.py` recarga el servidor automáticamente sin reiniciar Docker.
-
-### Comandos Docker útiles
-```bash
-docker-compose down          # Detener
-docker-compose build         # Reconstruir (si cambias requirements.txt)
-docker-compose logs -f       # Ver logs en tiempo real
-docker-compose exec tizon-python bash   # Entrar al contenedor
-```
-
----
-
-## Probar el endpoint /analyze
-
-### Con curl (genera imagen de prueba)
-```bash
-# Generar frame de prueba en Base64
-FRAME=$(python3 -c "
-import cv2, numpy as np, base64
-img = np.zeros((224, 224, 3), dtype=np.uint8)
-img[:, :, 1] = 120  # Verde
-noise = (np.random.rand(224,224,3) * 50).astype(np.uint8)
-img = cv2.add(img, noise)
-_, buf = cv2.imencode('.jpg', img)
-print(base64.b64encode(buf.tobytes()).decode())
-")
-
-# Enviar al endpoint
-curl -X POST http://localhost:8000/analyze \
-  -H "Content-Type: application/json" \
-  -d "{\"frame_b64\": \"$FRAME\", \"session_id\": \"test-001\"}" \
-  | python3 -m json.tool
-```
-
-### Con una imagen real del disco
-```bash
-FRAME=$(base64 -i /ruta/a/foto_planta.jpg)
-
-curl -X POST http://localhost:8000/analyze \
-  -H "Content-Type: application/json" \
-  -d "{\"frame_b64\": \"$FRAME\"}" \
-  | python3 -m json.tool
-```
-
-### Script automático de tests
-```bash
-chmod +x scripts/test_local.sh
-./scripts/test_local.sh
-```
-
----
-
-## Correr los tests
-
-```bash
-# Activar entorno virtual primero (si no usas Docker)
-source .venv/bin/activate
-
-# Tests unitarios — NO requieren el modelo .h5
-pytest tests/ -v -m "not integration"
-
-# Tests de integración — SÍ requieren modelo en model/
-pytest tests/ -v -m integration
-
-# Todos los tests
-pytest tests/ -v
-
-# Con reporte de cobertura
-pytest tests/ -v --cov=app --cov-report=term-missing
-
-# Dentro de Docker:
-docker-compose exec tizon-python pytest tests/ -v -m "not integration"
-```
-
----
-
-## DESPLIEGUE EN AWS
-
-### Arquitectura
-
-```
-Móvil ──▶ Spring Boot (EC2/ECS)
-                │
-                │  POST /analyze  (JSON + Base64)
-                ▼
-         API Gateway (REST)
-                │
-                ▼
-         Lambda Function
-         (imagen Docker en ECR)
-                │
-                ├──▶ S3: descarga modelo .h5 (solo en cold start)
-                └──▶ Retorna JSON con label + bboxes
-```
-
-### Requisitos previos AWS
-
-```bash
-# 1. Instalar AWS CLI v2
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip && sudo ./aws/install
-aws --version   # aws-cli/2.x.x
-
-# 2. Instalar AWS SAM CLI
-pip install aws-sam-cli
-sam --version   # SAM CLI, version 1.x.x
-
-# 3. Docker instalado y corriendo
-docker --version
-
-# 4. Configurar credenciales AWS
-aws configure
-#   AWS Access Key ID:     [tu key]
-#   AWS Secret Access Key: [tu secret]
-#   Default region name:   us-east-1
-#   Default output format: json
-
-# Verificar que funciona:
-aws sts get-caller-identity
-# Debe mostrar Account ID, UserId y Arn
-```
-
-### Paso 1 — Primer despliegue completo
-
-```bash
-chmod +x scripts/deploy_aws.sh scripts/upload_model.sh scripts/test_local.sh
-
-# Este script hace todo:
-#   1. Crea repositorio ECR (si no existe)
-#   2. Login en ECR
-#   3. Build imagen Docker (target: lambda)
-#   4. Push imagen a ECR
-#   5. sam deploy → crea Lambda + API Gateway + S3 en CloudFormation
-./scripts/deploy_aws.sh
-```
-
-Al terminar verás:
-```
-══════════════════════════════════════════
- ✅ Despliegue completado
-══════════════════════════════════════════
-  API URL:      https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod
-  Model Bucket: tizon-tardio-models-123456789012-prod
-
-  → Prueba el health check:
-    curl https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod/health
-
-  → Sube el modelo:
-    ./scripts/upload_model.sh model/modelo_tizon_tardio.h5
-
-  → Configura en Spring Boot:
-    PYTHON_SERVICE_URL=https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod
-```
-
-### Paso 2 — Subir el modelo a S3
-
-```bash
-# Solo necesario la primera vez, o cuando re-entrenes el modelo
-./scripts/upload_model.sh model/modelo_tizon_tardio.h5
-```
-
-### Paso 3 — Verificar en AWS
-
-```bash
-API_URL="https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod"
-
-# Health check (primera llamada tarda 10-15s por cold start del modelo)
-curl $API_URL/health
-# {"status":"ok","model_loaded":true,"environment":"aws",...}
-
-# Test completo contra AWS
-API_URL=$API_URL bash scripts/test_local.sh
-```
-
-### Paso 4 — Configurar Spring Boot
-
-En `application.yml` de Spring Boot:
-```yaml
-python:
-  service:
-    base-url: https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod
-    timeout-seconds: 30
-```
-
-O como variable de entorno en EC2/ECS:
-```bash
-PYTHON_SERVICE_URL=https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod
-```
-
-### Re-desplegar después de cambios en el código
-
-```bash
-# Cambios en código Python → rebuild + redeploy
-./scripts/deploy_aws.sh
-
-# Solo cambio de modelo (re-entrenamiento)
-./scripts/upload_model.sh /ruta/nuevo/modelo.h5
-# La próxima invocación Lambda descarga el modelo nuevo automáticamente
-```
-
----
-
-## Variables de entorno — referencia completa
-
-| Variable | Local | AWS | Descripción |
-|---|---|---|---|
-| `APP_ENV` | `local` | `aws` | Modo de carga del modelo |
-| `LOCAL_MODEL_PATH` | `model/modelo_tizon_tardio.h5` | — | Ruta local del modelo |
-| `MODEL_S3_BUCKET` | — | `tizon-tardio-models-...` | Bucket S3 del modelo |
-| `MODEL_S3_KEY` | — | `models/modelo_tizon_tardio.h5` | Clave S3 del modelo |
-| `AWS_DEFAULT_REGION` | `us-east-1` | `us-east-1` | Región AWS |
-| `HOST` | `0.0.0.0` | — | Host uvicorn (solo local) |
-| `PORT` | `8000` | — | Puerto uvicorn (solo local) |
-| `RELOAD` | `true` | — | Hot-reload (solo local) |
-| `LOG_LEVEL` | `info` | `info` | Nivel de logging |
-
----
-
-## Problemas frecuentes
-
-**"Modelo no encontrado en model/"**
-```bash
-cp /ruta/modelo.h5 model/modelo_tizon_tardio.h5
-```
-
-**"No se pudo decodificar la imagen"**
-El Base64 enviado incluye el prefijo `data:image/jpeg;base64,`. Enviar solo el Base64 puro.
-
-**Lambda OOM (Out of Memory)**
-Subir `LambdaMemoryMB` a `3008` en `template.yaml` y re-desplegar.
-
-**Cold start muy lento (>15s)**
-Activar Provisioned Concurrency:
-```bash
-aws lambda put-provisioned-concurrency-config \
-  --function-name tizon-detection-prod \
-  --qualifier LATEST \
-  --provisioned-concurrent-executions 1
-```
-Costo extra: ~$15 USD/mes.
-
-**"Access Denied" descargando modelo desde S3**
-Verificar que el bucket en S3 es el mismo que creó SAM:
-```bash
-aws cloudformation describe-stacks \
-  --stack-name tizon-tardio-stack \
-  --query "Stacks[0].Outputs[?OutputKey=='ModelBucketName'].OutputValue" \
-  --output text
-```
-
----
-
-## Costos AWS estimados
-
-| Servicio | Uso mensual estimado | Costo |
+# TizonDetectionModel — Servicio de IA
+
+Servicio interno (FastAPI + TensorFlow CPU) que clasifica regiones de hoja de papa como `SANO`, `TIZON_TEMPRANO`
+o `TIZON_TARDIO`. Si la hoja es de otra planta, responde `NOT_POTATO` y no analiza el tizón. Lo consume **solo** la
+API de Spring por la red interna de Docker; no se expone a Internet ni usa CORS. Contrato: `contracts/tizon-api.yaml`
+(tag `interno-ia`), copia de la fuente de verdad de la carpeta raíz del proyecto.
+
+## Endpoints
+| Método | Ruta | Descripción |
 |---|---|---|
-| Lambda 2048 MB | 500K invocaciones × 2s | ~$8 USD |
-| API Gateway | 500K requests | ~$1.75 USD |
-| S3 modelo | ~100 MB almacenamiento | ~$0.01 USD |
-| ECR imagen | ~2 GB almacenamiento | ~$0.20 USD |
-| **Total** | | **~$10 USD/mes** |
+| `GET` | `/health` | Estado del modelo: `status` (`ok`/`degraded`), `model_loaded`, `model_version`, `classes` (salidas del modelo en orden, incluida `NO_PAPA`) e `input_spec`. Siempre responde 200. |
+| `POST` | `/v1/analyze` | Analiza un frame (`frame_b64`, JPEG/PNG en Base64 sin prefijo). Exige `X-Internal-Token`. Responde `DETECTED` con regiones, `NO_VEGETATION` (no hay hoja) o `NOT_POTATO` (la hoja es de otra planta); los dos últimos son resultados válidos con `label=null`. |
+
+Errores con el cuerpo `Error` del contrato: 400 `INVALID_IMAGE`, 401 `UNAUTHORIZED`, 422 `VALIDATION_ERROR`
+y 503 `MODEL_NOT_READY`. El header `X-Request-Id` se registra en los logs y se devuelve en los errores.
+
+## Modelo y metadatos
+- Modelo en uso: `modelo_tizon_4c.keras` (MobileNetV2 con el preprocesamiento dentro del modelo), con 4 salidas:
+  `SANO`, `TIZON_TEMPRANO`, `TIZON_TARDIO` y `NO_PAPA`. **No va a git**: está en la carpeta raíz del proyecto y en
+  `deploy/models/`. Se entrena con `training/train.py` (F4-IA-05).
+- `MODEL_META_PATH`: `model_meta.json`, única fuente de clases, preprocesamiento (`color_order`, `scaling`),
+  `min_confidence` y `model_version`. Si falta, no es válido o su `sha256` no coincide con el modelo, el servicio
+  arranca **degradado** (`/health` lo informa y `/v1/analyze` responde 503).
+- Resultado principal: gana la clase más severa (`TIZON_TARDIO` > `TIZON_TEMPRANO` > `SANO`) entre las regiones con
+  confianza ≥ `min_confidence`. Una región `NO_PAPA` no se analiza; si ninguna región es de papa, la respuesta es
+  `NOT_POTATO`. Las probabilidades solo traen las clases de papa, así que pueden sumar menos de 1.
+- El filtro de vegetación (`app/vegetation.py`) acepta el verde, el amarillo de la clorosis conectado al verde y
+  las lesiones marrones conectadas al tejido (F4-IA-03).
+- Para actualizar el modelo se reemplazan el archivo del modelo y el `model_meta.json` y se reinicia el contenedor,
+  sin reconstruir la imagen. **Volver al modelo anterior** (`modelo_tizon_tardio.h5`, 2 clases, Keras 2.14): usar su
+  `model_meta.json` del historial de git (`git log -- models/model_meta.json`); el servicio sigue aceptándolo.
+- TensorFlow 2.16 (Keras 3) no deserializa el `DepthwiseConv2D` del `.h5` de Keras 2.14; `app/predictor.py` descarta
+  el argumento `groups` (siempre 1). Keras queda fijado en `requirements.txt` en la versión con que se guardó el modelo.
+
+## Configuración
+| Variable | Obligatoria | Descripción |
+|---|---|---|
+| `APP_ENV` | No | `local` (por defecto fuera de Docker) o `production` (por defecto en la imagen) |
+| `INTERNAL_API_TOKEN` | Sí, salvo `APP_ENV=local` | Secreto compartido con la API. Sin él, fuera de `local`, el servicio no arranca |
+| `MODEL_PATH` | No | Por defecto `models/modelo_tizon_4c.keras` (en Docker `/models/...`) |
+| `MODEL_META_PATH` | No | Por defecto `models/model_meta.json` (en Docker `/models/...`) |
+
+Ver `.env.example`.
+
+## Ejecución local
+```bash
+python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+cp ../modelo_tizon_4c.keras models/               # models/* está en .gitignore (salvo model_meta.json)
+uvicorn app.main:app --reload
+```
+
+## Pruebas y linter
+```bash
+pytest test/ -m "not integration"                       # unitarias + contrato (openapi-core)
+MODEL_PATH=../modelo_tizon_4c.keras pytest test/ -m integration
+ruff check app test evaluation training
+```
+
+## Entrenamiento y evaluación (F4, 08-modelo-ia)
+Los datos van **fuera del repositorio** (o en `evaluation/data/`, ignorada por git), con una carpeta por clase:
+`SANO/`, `TIZON_TEMPRANO/`, `TIZON_TARDIO/` y `NO_PAPA/`. Los reportes quedan en `evaluation/reports/` (`.md` y
+`.json`) y sí se versionan como evidencia. Las imágenes nunca se versionan.
+
+`training/sources.csv` dice de dónde salió cada imagen (`file`, `uso`, `dataset`, `url`): las de `training/split.csv`
+y las del set de campo (`uso` = `campo`; `retirada` = repetidas en el entrenamiento). Para reconstruir un set, se
+descarga cada `url` en `<dir>/<file>` y se compara con el `sha256` de `split.csv`. Las de PlantVillage se guardan tal
+cual. Las de PlantDoc y las sanas extra de PlantVillage (`pd_*`, `pv_*`) se guardaron como JPEG de calidad 90, con el
+lado mayor de 640 px como máximo (OpenCV 4.9, `INTER_AREA`). Los sufijos `_r2` y `_r3` son copias del sobremuestreo.
+Licencias: PlantDoc es CC BY 4.0; el repositorio de PlantVillage no declara licencia, así que sus imágenes no se
+redistribuyen.
+
+```bash
+# 1. Entrenamiento reproducible (semilla 42): partición 70/15/15 sin casi duplicados entre particiones,
+#    guardada en training/split.csv. Actualiza models/model_meta.json y deja el reporte de entrenamiento.
+python -m training.train --data <dir> --model-out ../modelo_tizon_4c.keras --source "origen de las imágenes"
+
+# 2. Métricas frente a las metas del PDF sobre la partición de prueba. classifier = modelo puro;
+#    pipeline = el flujo de /v1/analyze (filtro de vegetación + modelo + resultado principal).
+python -m evaluation.evaluate --data <dir> --mode classifier --model ../modelo_tizon_4c.keras \
+    --manifest training/split.csv --split test --train-split train --source "origen"
+python -m evaluation.evaluate --data <dir> --mode pipeline --model ../modelo_tizon_4c.keras \
+    --manifest training/split.csv --split test --train-split train --source "origen"
+
+# 3. Set de campo u otro set externo: --tag separa sus reportes (<fecha>_<tag>_<modo>.md); --train busca
+#    fotos repetidas entre ese set y el de entrenamiento. Solo la carpeta TIZON_TARDIO es obligatoria.
+python -m evaluation.evaluate --data <set_campo> --mode pipeline --model ../modelo_tizon_4c.keras \
+    --tag campo-propio --train <dir> --source "origen"
+
+# 4. Auditoría del dataset → evaluation/reports/dataset_audit.md
+python -m evaluation.audit --data <dir>
+
+# Reentrenar con más datos sin cambiar la prueba: los archivos de split.csv conservan su partición y los nuevos
+# van solo a train/val. Con --meta y --reports fuera del repo, el modelo en uso no cambia hasta adoptarlo.
+python -m training.train --data <dir> --model-out ../<modelo_nuevo>.keras --keep-split training/split.csv \
+    --new-shares 0.85,1.0 --meta <copia de model_meta.json> --reports <carpeta temporal> --source "origen"
+
+# Para un modelo de origen desconocido: orden de clases y preprocesamiento (F4-IA-02).
+python -m evaluation.calibrate --data <set_calibracion> --model <modelo> --write
+```
+
+Resultados del 24-oct (PlantVillage, partición de prueba de 479 imágenes que el modelo no vio; reportes en
+`evaluation/reports/2026-10-24_*`):
+
+| Métrica (TIZON_TARDIO contra el resto; accuracy global) | Meta del PDF | `classifier` | `pipeline` |
+|---|---|---|---|
+| Accuracy | ≥ 90 % | 95,6 % | 94,4 % |
+| Precision | ≥ 90 % | 94,2 % | 94,8 % |
+| Recall | ≥ 90 % | 97,3 % | 97,3 % |
+| F1 | ≥ 90 % | 95,7 % | 96,1 % |
+| Especificidad | ≥ 85 % | 97,3 % | 97,6 % |
+| Tasa de error | ≤ 10 % | 4,4 % | 5,6 % |
+
+- Tizón temprano: F1 98,0 % (`classifier`) y 95,6 % (`pipeline`); el 4,0 % de sus hojas termina en `NO_VEGETATION`.
+- ¿Es papa?: el 1,6 % de las hojas de papa se rechaza como `NO_PAPA` y el 7,6 % de las de otras plantas se acepta
+  como papa (`pipeline`).
+- **Limitación:** PlantVillage son fotos de laboratorio (una hoja sobre fondo uniforme). Estas métricas no miden el
+  desempeño en campo; para eso hacen falta fotos propias (P-02). `NO_PAPA` solo conoce 13 cultivos de PlantVillage.
+- La latencia del reporte es la de la máquina donde corre (queda anotada). La meta de RNF-REN-02 aplica en la EC2.
+- Las métricas se reportan aunque no alcancen la meta. No se ajusta el set de prueba para mejorar los números.
+
+**Campo (PlantDoc, 274 fotos que ningún modelo vio: 38 de tizón temprano, 32 de tardío y 204 de otras especies; no hay
+papa sana).** Reportes `2026-10-24_campo-plantdoc_*` (modelo en uso) y `2026-10-24_v2-campo-plantdoc_*` (candidato v2):
+
+| `pipeline` | Modelo en uso (`modelo_tizon_4c.keras`) | Candidato v2 (`modelo_tizon_4c_v2.keras`) |
+|---|---|---|
+| Accuracy (global) | 73,7 % | 73,4 % |
+| Recall de tizón tardío | 6,2 % | 59,4 % |
+| F1 de tizón tardío / temprano | 8,2 % / 21,7 % | 52,8 % / 38,3 % |
+| Hojas de papa rechazadas como `NO_PAPA` | 72,9 % | 15,7 % |
+| Hojas de otras plantas aceptadas como papa | 4,4 % | 19,6 % |
+
+- El modelo en uso no sirve con fotos de campo: rechaza casi todas las hojas de papa. Su accuracy es la de responder
+  siempre "no es papa" (204 de 274 = 74,5 %), así que la accuracy global no sirve para compararlos en este set.
+- El candidato v2 agrega al entrenamiento 137 fotos de campo de papa con tizón (repetidas 3 veces) y 789 hojas de
+  otras plantas (`2026-10-24_entrenamiento_v2.md`). En laboratorio sigue cumpliendo todas las metas
+  (`2026-10-24_v2_*`: accuracy 96,0 % `classifier` y 93,7 % `pipeline`). **No se adoptó solo:** la regla fijada de
+  antemano pedía mejorar la accuracy en campo y quedó igual. La decisión es del usuario (`docs/requerimientos/08-modelo-ia.md` §8).
+
+## Docker
+```bash
+docker build -t tizon-ia .
+docker run --rm -e INTERNAL_API_TOKEN=... -v "$PWD/models:/models:ro" -p 8000:8000 tizon-ia
+```
+La imagen corre con un usuario sin privilegios y su `HEALTHCHECK` solo pasa si el modelo cargó. No incluye
+`training/` ni `evaluation/`. En el sistema completo se levanta con `../deploy/docker-compose.yml`, sin publicar el
+puerto 8000.
+
+## CI/CD (GitHub Actions)
+`.github/workflows/ci.yml` corre en cada push y PR a `dev`, `qa` y `main`: ruff, pytest (sin las pruebas de
+integración, que requieren el modelo) y gitleaks. En cada push a `qa` o `main` publica la imagen
+`ghcr.io/<owner>/tizon-ia` con las etiquetas `:qa` o `:main` y `:sha-<commit>`. La EC2 la descarga por *pull*
+(`deploy/scripts/auto-update.sh`): GitHub nunca entra a la EC2. Si el paquete de GHCR es privado, la EC2
+necesita un token de solo lectura (`read:packages`).
